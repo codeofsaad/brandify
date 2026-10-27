@@ -361,7 +361,7 @@ function CharacterCard({ m, analysisEnabled, analyzing, error, onAnalyze, setCha
       <div className="char-head">
         <div>
           <h3>Visual character <span className="opt">Optional</span></h3>
-          <p>Claude looks at a screenshot of their website and describes the mood, imagery and decorative style that CSS can’t measure. The result is added to design.md as extra rules.</p>
+          <p>Claude looks at a screenshot of their website and describes the mood, imagery and decorative style that CSS can’t measure. The result is added to the design file as extra rules.</p>
         </div>
         {!c && (
           <button className="btn btn-secondary" disabled={!analysisEnabled || analyzing || !m.screenshot} onClick={onAnalyze}>
@@ -466,7 +466,7 @@ export function ReviewStep({ m, md, generated, stale, onReset }) {
   return (
     <section className="panel">
       <StepHead n="6" title="Review and generate">
-        Check the summary, then press <b>Generate design.md</b> below. You can go back to any step and change things; the file updates when you regenerate.
+        Check the summary, then press <b>Generate Design File</b> below. You can go back to any step and change things, then regenerate.
       </StepHead>
       <div className="summary">
         <div><span>Company</span><b>{m.company.name}</b></div>
@@ -480,9 +480,12 @@ export function ReviewStep({ m, md, generated, stale, onReset }) {
         <ul className="notes">{m.notes.map((n) => <li key={n}>{n}</li>)}</ul>
       )}
       <div className="section-t">
-        <h3>{generated ? (stale ? 'design.md (out of date, regenerate)' : 'design.md') : 'design.md preview'}</h3>
+        <h3>{generated ? (stale ? 'Design file (out of date, regenerate)' : 'Design file') : 'Design file preview'}</h3>
         <button className="btn btn-ghost" onClick={onReset}>Reset all to detected</button>
       </div>
+      {generated && !stale && (
+        <div className="next-hint"><b>Next:</b> click <b>Download Design File</b>, then upload it to Claude when you create your data app.</div>
+      )}
       <pre className={`md ${generated && !stale ? '' : 'dim'}`}>{md}</pre>
     </section>
   );

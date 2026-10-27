@@ -278,14 +278,20 @@ function pickLogo(logos) {
 
 // ---------- entry point ----------
 
-export function synthesize({ brand, site, demo }) {
+export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null }) {
   const { colors, prov, alternatives, monochrome } = pickColors(brand, site);
   const typography = pickTypography(brand, site, monochrome);
   const shape = pickShape(site, monochrome);
   const logos = collectLogos(brand);
   const notes = [];
   if (demo) notes.push('Brandfetch data is from built-in demo fixtures (no API key set).');
-  if (!site) notes.push('The live website could not be analyzed, so shape, spacing and fonts use defaults.');
+  if (!site) {
+    notes.push(
+      siteError
+        ? `The website could not be analyzed automatically (${siteError.replace(/\.$/, '')}), so corners, shadows, spacing and fonts use Brandfetch data and sensible defaults. Adjust them in the Shape and feel step.`
+        : 'The live website could not be analyzed, so shape, spacing and fonts use defaults.',
+    );
+  }
   else if (site.status !== 'ok') notes.push(`Website analysis was partial (${site.status}).`);
   if (monochrome) notes.push('This brand is essentially monochrome; the accent color is used sparingly.');
   for (const k of ['heading', 'body']) {
@@ -309,7 +315,8 @@ export function synthesize({ brand, site, demo }) {
     logos,
     logoId: pickLogo(logos)?.id || null,
     monochrome,
-    screenshot: site?.screenshot || null,
+    screenshot: site?.screenshot || screenshot || null,
+    screenshotSource: site ? 'live' : screenshotSource,
     siteUrl: site?.url || null,
     character: null, // optional, filled by screenshot analysis
     notes,

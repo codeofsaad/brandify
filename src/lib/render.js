@@ -13,6 +13,9 @@ export const DENSITY = {
   spacious: { pad: 26, gap: 24, label: 'spacious' },
 };
 
+// A card with no border and no shadow is invisible on a white page, so flat brands get a 1px hairline.
+export const effectiveBorder = (shape) => shape.borderWidth || (shape.shadow === 'none' ? 1 : 0);
+
 export const selectedLogo = (m) => m.logos.find((l) => l.id === m.logoId) || null;
 
 // Uploaded logos are data URLs; reference them by file name instead of embedding megabytes of base64.
@@ -36,7 +39,7 @@ export function cssVars(m) {
     '--radius': `${m.shape.cardRadius}px`,
     '--btn-radius': `${m.shape.buttonRadius}px`,
     '--shadow': SHADOWS[m.shape.shadow],
-    '--bw': `${m.shape.borderWidth}px`,
+    '--bw': `${effectiveBorder(m.shape)}px`,
     '--pad': `${d.pad}px`,
     '--gap': `${d.gap}px`,
     '--font-heading': cssStack(m.typography.heading.family),
@@ -99,7 +102,7 @@ export function renderDesignMd(m) {
     colors: c,
     palettes: m.palettes,
     typography: { heading: { family: hf.family, weight: hf.weight, transform: hf.transform, tracking: hf.tracking }, body: { family: bf.family, weight: bf.weight } },
-    shape: { cardRadius: s.cardRadius, buttonRadius: s.buttonRadius, shadow: SHADOWS[s.shadow], borderWidth: s.borderWidth, density: s.density },
+    shape: { cardRadius: s.cardRadius, buttonRadius: s.buttonRadius, shadow: SHADOWS[s.shadow], borderWidth: effectiveBorder(s), density: s.density },
     chart: { gridlines: s.gridlines, barRadius: s.barRadius, lineWidth: s.lineWidth },
     logo: logo ? { kind: logo.kind, url: logoRef(logo) } : null,
     ...(ch ? { character: ch } : {}),
@@ -178,7 +181,7 @@ Use categorical for unordered categories, sequential for magnitude, and divergin
 
 ## Shape, depth and spacing
 
-- Card radius **${s.cardRadius}px**, button radius **${s.buttonRadius >= 999 ? 'pill' : s.buttonRadius + 'px'}**, border width ${s.borderWidth}px
+- Card radius **${s.cardRadius}px**, button radius **${s.buttonRadius >= 999 ? 'pill' : s.buttonRadius + 'px'}**, border width ${effectiveBorder(s)}px
 - Elevation: **${s.shadow}** (\`${SHADOWS[s.shadow]}\`)
 - Density: **${d.label}**; card padding ${d.pad}px, gap between cards ${d.gap}px
 

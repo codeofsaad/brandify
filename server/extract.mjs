@@ -42,8 +42,10 @@ export async function extractSite(input) {
     const page = await ctx.newPage();
 
     let status = 'ok';
+    let httpStatus = 0;
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      httpStatus = resp?.status() ?? 0;
       await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(2500);
       for (const name of [/accept all/i, /accept/i, /agree/i, /got it/i]) {
@@ -58,6 +60,14 @@ export async function extractSite(input) {
       status = `navigation problem: ${e.message.split('\n')[0]}`;
     }
 
+    // Many large sites refuse automated browsers and serve an error page. Never measure or screenshot that page.
+    const blockReason = await detectBlock(page, httpStatus);
+    if (blockReason) {
+      const result = { url, domain, status: 'blocked', blocked: true, httpStatus, reason: blockReason };
+      writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
+      return result;
+    }
+
     await page.screenshot({ path: `${dir}home.png` });
     const style = await page.evaluate(sampleStyles);
     const result = { url, domain, status, screenshot: `/out/${domain}/home.png`, ...style };
@@ -66,6 +76,17 @@ export async function extractSite(input) {
   } finally {
     await browser.close();
   }
+}
+
+const BLOCK_RE = /access denied|forbidden|request blocked|captcha|are you (a )?robot|verify you are (a )?human|unusual traffic|attention required|just a moment|pardon our interruption|security check/i;
+
+async function detectBlock(page, httpStatus) {
+  const probe = await page.evaluate(() => ({ title: document.title || '', text: (document.body?.innerText || '').trim() })).catch(() => ({ title: '', text: '' }));
+  const looksBlocked = BLOCK_RE.test(`${probe.title} ${probe.text.slice(0, 400)}`) && probe.text.length < 1500;
+  if (httpStatus >= 400 && (looksBlocked || probe.text.length < 800)) return `The site returned HTTP ${httpStatus} to an automated browser.`;
+  if (looksBlocked) return 'The site showed a bot-protection page to an automated browser.';
+  if (probe.text.length < 40) return 'The page was empty when loaded by an automated browser.';
+  return null;
 }
 
 // Runs inside the page.

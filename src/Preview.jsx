@@ -78,7 +78,10 @@ export default function Preview({ m }) {
       </div>
 
       {tab === 'site' && m.screenshot ? (
-        <div className="site-shot"><img src={m.screenshot} alt={`${m.company.name} website`} /></div>
+        <div className="site-shot">
+          {m.screenshotSource === 'brandfetch' && <div className="shot-note">The website blocks automated browsers, so this is Brandfetch’s saved screenshot.</div>}
+          <img src={m.screenshot} alt={`${m.company.name} website`} />
+        </div>
       ) : (
         <div className="pv" style={cssVars(m)}>
           <div className="pv-header">

@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
@@ -132,6 +132,24 @@ async function fetchBrand(domain) {
   throw Object.assign(new Error('No Brandfetch API key is set and no demo data exists for this company. Add BRANDFETCH_API_KEY to .env.'), { status: 401 });
 }
 
+// When a site blocks automated browsers, use Brandfetch's own screenshot so the preview still has something real.
+async function fallbackScreenshot(brand, domain) {
+  const url = brand?.screenshot?.url;
+  if (!url || !/^https:\/\/cdn\.brandfetch\.io\//.test(url)) return null;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 8 * 1024 * 1024) return null;
+    const dir = fileURLToPath(new URL(`../out/${domain}/`, import.meta.url));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}home.png`, buf);
+    return `/out/${domain}/home.png`;
+  } catch {
+    return null;
+  }
+}
+
 // Website analysis only (used by the manual entry path).
 app.post('/api/site', async (req, res) => {
   const url = String(req.body?.url || '').trim();
@@ -151,11 +169,21 @@ app.post('/api/brand', async (req, res) => {
   if (brandR.status === 'rejected') {
     return res.status(brandR.reason.status || 502).json({ error: brandR.reason.message });
   }
+  let site = siteR.status === 'fulfilled' ? siteR.value : null;
+  let siteNote = siteR.status === 'rejected' ? siteR.reason.message : null;
+  let screenshot = site && !site.blocked ? site.screenshot : null;
+  if (site?.blocked || !site) {
+    siteNote = site?.reason || siteNote;
+    site = null; // nothing measured from a blocked page is trustworthy
+    screenshot = await fallbackScreenshot(brandR.value.brand, domain);
+  }
   res.json({
     brand: brandR.value.brand,
     demo: brandR.value.demo,
-    site: siteR.status === 'fulfilled' ? siteR.value : null,
-    siteError: siteR.status === 'rejected' ? siteR.reason.message : null,
+    site,
+    siteError: siteNote,
+    screenshot,
+    screenshotSource: screenshot ? (site ? 'live' : 'brandfetch') : null,
   });
 });
 

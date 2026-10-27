@@ -69,9 +69,14 @@ export default function App() {
     try {
       const domain = website ? website.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0] : name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
       let site = null;
+      let siteError = null;
       if (website) {
         const r = await fetch('/api/site', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: website }) });
         if (r.ok) site = await r.json();
+        if (site?.blocked) {
+          siteError = site.reason;
+          site = null;
+        }
       }
       const brand = {
         name: name.trim(),
@@ -81,7 +86,7 @@ export default function App() {
         fonts: [],
         logos: logo ? [{ type: 'logo', theme: 'dark', formats: [{ format: logo.format, src: logo.dataUrl }], uploaded: true, fileName: logo.name }] : [],
       };
-      const model = synthesize({ brand, site, demo: false });
+      const model = synthesize({ brand, site, demo: false, siteError });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
       setM(withDetected(model));
@@ -197,8 +202,8 @@ export default function App() {
         <div className="hero-in">
           <h1>Make every Tableau Data App look like it belongs to your customer.</h1>
           <p>
-            Brandify pulls a company’s logo, colors and fonts, studies how its website is actually built (corners, shadows, spacing),
-            and lets you fine-tune the result. Then it writes a <b>design.md</b> that tells Claude how to style a Tableau Data App in that brand’s look and feel.
+            Brandify pulls a company’s logo, colors and fonts, studies how its website is built, and lets you fine-tune the result.
+            Then it creates a design file. <b>After you download it, upload it to Claude when you create a data app</b> so the app matches that brand’s look and feel.
           </p>
         </div>
       </section>
@@ -241,9 +246,9 @@ export default function App() {
             {!last && <button className="btn btn-secondary" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}
             {isGenerated && <button className="btn btn-ghost" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
             {isGenerated ? (
-              <button className="btn btn-primary btn-lg" onClick={download}>Download design.md</button>
+              <button className="btn btn-primary btn-lg" onClick={download}>Download Design File</button>
             ) : (
-              <button className="btn btn-primary btn-lg" disabled={!m} onClick={generate}>{stale ? 'Regenerate design.md' : 'Generate design.md'}</button>
+              <button className="btn btn-primary btn-lg" disabled={!m} onClick={generate}>{stale ? 'Regenerate Design File' : 'Generate Design File'}</button>
             )}
           </div>
         </div>
