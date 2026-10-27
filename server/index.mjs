@@ -25,7 +25,8 @@ app.use(express.json({ limit: '100kb' }));
 app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 60 }));
 app.use(['/api/brand', '/api/site', '/api/analyze'], rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
-app.use('/out', express.static(fileURLToPath(new URL('../out/', import.meta.url))));
+// Screenshots are overwritten on every pull under the same URL, so the browser must never cache them.
+app.use('/out', express.static(fileURLToPath(new URL('../out/', import.meta.url)), { setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
 
 const cleanDomain = (v) =>
   String(v || '')
@@ -182,7 +183,7 @@ app.post('/api/brand', async (req, res) => {
     demo: brandR.value.demo,
     site,
     siteError: siteNote,
-    screenshot,
+    screenshot: screenshot ? `${screenshot}?v=${Date.now()}` : null,
     screenshotSource: screenshot ? (site ? 'live' : 'brandfetch') : null,
   });
 });
