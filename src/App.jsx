@@ -4,6 +4,7 @@ import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewSte
 import { synthesize, withDetected, derivePalettes } from './lib/synthesize.js';
 import { renderDesignMd } from './lib/render.js';
 import { loadFont } from './lib/fonts.js';
+import { fetchJson, analyzeSite } from './lib/api.js';
 
 const TABLEAU_SYMBOL = 'https://cdn.brandfetch.io/id9sYMA_Im/theme/light/symbol.svg?c=1bxn5168vgovn2t5jgb34j594duYhJreifV';
 
@@ -48,10 +49,11 @@ export default function App() {
     setLoadingFor(input);
     setError('');
     try {
-      const r = await fetch('/api/brand', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: input.includes('.') ? input : guessDomain(input) }) });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
-      setM(withDetected(synthesize(data)));
+      const domain = input.includes('.') ? input : guessDomain(input);
+      // 1) brand identity (fast)  2) website analysis (slow, runs as a background job)
+      const data = await fetchJson('/api/brand', { domain });
+      const siteData = await analyzeSite({ domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url });
+      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, ...siteData })));
       setGeneratedMd(null);
       setStep(1);
     } catch (e) {
@@ -68,16 +70,7 @@ export default function App() {
     setError('');
     try {
       const domain = website ? website.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0] : name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      let site = null;
-      let siteError = null;
-      if (website) {
-        const r = await fetch('/api/site', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: website }) });
-        if (r.ok) site = await r.json();
-        if (site?.blocked) {
-          siteError = site.reason;
-          site = null;
-        }
-      }
+      const siteData = website ? await analyzeSite({ url: website }) : { site: null, siteError: null, screenshot: null, screenshotSource: null };
       const brand = {
         name: name.trim(),
         domain,
@@ -86,7 +79,7 @@ export default function App() {
         fonts: [],
         logos: logo ? [{ type: 'logo', theme: 'dark', formats: [{ format: logo.format, src: logo.dataUrl }], uploaded: true, fileName: logo.name }] : [],
       };
-      const model = synthesize({ brand, site, demo: false, siteError });
+      const model = synthesize({ brand, demo: false, ...siteData });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
       setM(withDetected(model));
@@ -145,9 +138,7 @@ export default function App() {
     setAnalyzing(true);
     setAnalyzeError('');
     try {
-      const r = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: m.company.domain }) });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+      const data = await fetchJson('/api/analyze', { domain: m.company.domain });
       update((n) => { n.character = data; });
     } catch (e) {
       setAnalyzeError(e.message);

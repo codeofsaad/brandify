@@ -48,13 +48,14 @@ Open the app at the `*.herokuapp-internal.com` URL (the plain `.herokuapp.com` U
 ### How it runs on Heroku
 
 - `Procfile` starts one web process: `node server/index.mjs`. The same process serves the built React app and the API.
+- Heroku drops any request over 30 seconds (H12), so website analysis runs as a background job: the browser calls `POST /api/site/start`, then polls `GET /api/site/job/:id`. Jobs run one at a time in memory.
 - Website analysis uses the self-contained Chromium from `@sparticuz/chromium` on Linux, because buildpack dynos have
   no system browser libraries. Locally it uses Playwright's Chromium.
 - Heroku's disk is ephemeral: screenshots are regenerated on every pull; nothing persists between restarts.
 
 ### Built-in protections
 
-- Rate limit: 30 pulls/analyses per IP per 15 minutes, 60 searches per minute.
+- Rate limit: 40 expensive requests (brand pulls, site-analysis jobs, Claude analysis) per IP per 15 minutes, 60 searches per minute. Job polling is not counted.
 - The website analyzer only reaches public internet hosts. `localhost`, private networks and cloud metadata addresses are
   blocked, including for redirects and every sub-request the page makes.
 - Domain inputs are validated before they touch the filesystem.

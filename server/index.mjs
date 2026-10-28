@@ -1,6 +1,7 @@
 import express from 'express';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
 
@@ -27,7 +28,8 @@ app.disable('x-powered-by');
 if (PASSWORD) app.use(requirePassword(PASSWORD));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 60 }));
-app.use(['/api/brand', '/api/site', '/api/analyze'], rateLimit({ windowMs: 15 * 60 * 1000, max: 30 }));
+// Only the expensive POSTs are limited; job polling (GET /api/site/job/:id) must not count.
+app.use(['/api/brand', '/api/site/start', '/api/analyze'], rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }));
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 // Screenshots are overwritten on every pull under the same URL, so the browser must never cache them.
 app.use('/out', express.static(fileURLToPath(new URL('../out/', import.meta.url)), { setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
@@ -138,8 +140,7 @@ async function fetchBrand(domain) {
 }
 
 // When a site blocks automated browsers, use Brandfetch's own screenshot so the preview still has something real.
-async function fallbackScreenshot(brand, domain) {
-  const url = brand?.screenshot?.url;
+async function fallbackScreenshot(url, domain) {
   if (!url || !/^https:\/\/cdn\.brandfetch\.io\//.test(url)) return null;
   try {
     const r = await fetch(url);
@@ -155,41 +156,77 @@ async function fallbackScreenshot(brand, domain) {
   }
 }
 
-// Website analysis only (used by the manual entry path).
-app.post('/api/site', async (req, res) => {
-  const url = String(req.body?.url || '').trim();
-  if (!url) return res.status(400).json({ error: 'url required' });
-  try {
-    res.json(await extractSite(url));
-  } catch (e) {
-    res.status(502).json({ error: `Could not analyze that website: ${e.message}` });
-  }
-});
-
-// Brandfetch identity data + live-site style extraction, in parallel.
+// Brandfetch identity data only. This returns quickly; the slow website analysis runs as a background job below,
+// because Heroku's router drops any request that takes longer than 30 seconds.
 app.post('/api/brand', async (req, res) => {
   const domain = cleanDomain(req.body?.domain);
   if (!domain || !DOMAIN_RE.test(domain) || domain.length > 253) return res.status(400).json({ error: 'Enter a valid company name or domain.' });
-  const [brandR, siteR] = await Promise.allSettled([fetchBrand(domain), extractSite(domain)]);
-  if (brandR.status === 'rejected') {
-    return res.status(brandR.reason.status || 502).json({ error: brandR.reason.message });
+  try {
+    const { brand, demo } = await fetchBrand(domain);
+    res.json({ brand, demo });
+  } catch (e) {
+    res.status(e.status || 502).json({ error: e.message });
   }
-  let site = siteR.status === 'fulfilled' ? siteR.value : null;
-  let siteNote = siteR.status === 'rejected' ? siteR.reason.message : null;
-  let screenshot = site && !site.blocked ? site.screenshot : null;
-  if (site?.blocked || !site) {
-    siteNote = site?.reason || siteNote;
-    site = null; // nothing measured from a blocked page is trustworthy
-    screenshot = await fallbackScreenshot(brandR.value.brand, domain);
+});
+
+// ----- background website-analysis jobs -----
+const jobs = new Map(); // id -> { status: 'queued' | 'running' | 'done' | 'error', result?, error?, at }
+let queue = Promise.resolve(); // one browser at a time: Chromium is heavy and dynos are small
+const JOB_TTL_MS = 15 * 60 * 1000;
+const JOB_TIMEOUT_MS = 100 * 1000;
+setInterval(() => {
+  for (const [id, j] of jobs) if (Date.now() - j.at > JOB_TTL_MS) jobs.delete(id);
+}, 60 * 1000).unref();
+
+const withTimeout = (promise, ms, message) =>
+  Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms).unref())]);
+
+async function analyzeSite({ input, domain, screenshotUrl }) {
+  let site = null;
+  let siteError = null;
+  try {
+    const r = await withTimeout(extractSite(input), JOB_TIMEOUT_MS, 'The website took too long to analyze');
+    if (r.blocked) siteError = r.reason;
+    else site = r;
+  } catch (e) {
+    siteError = e.message;
   }
-  res.json({
-    brand: brandR.value.brand,
-    demo: brandR.value.demo,
+  // Nothing measured from a blocked or failed page is trustworthy; fall back to Brandfetch's screenshot.
+  const fallback = site ? null : await fallbackScreenshot(screenshotUrl, domain);
+  const screenshot = site ? site.screenshot : fallback;
+  return {
     site,
-    siteError: siteNote,
+    siteError,
     screenshot: screenshot ? `${screenshot}?v=${Date.now()}` : null,
     screenshotSource: screenshot ? (site ? 'live' : 'brandfetch') : null,
+  };
+}
+
+app.post('/api/site/start', (req, res) => {
+  const rawUrl = String(req.body?.url || '').trim();
+  const domain = rawUrl ? cleanDomain(rawUrl) : cleanDomain(req.body?.domain);
+  if (!domain || !DOMAIN_RE.test(domain) || domain.length > 253) return res.status(400).json({ error: 'Enter a valid website.' });
+  const id = randomUUID();
+  const job = { status: 'queued', at: Date.now() };
+  jobs.set(id, job);
+  const input = rawUrl || domain;
+  queue = queue.then(async () => {
+    job.status = 'running';
+    try {
+      job.result = await analyzeSite({ input, domain, screenshotUrl: req.body?.screenshotUrl });
+      job.status = 'done';
+    } catch (e) {
+      job.error = e.message;
+      job.status = 'error';
+    }
   });
+  res.json({ jobId: id });
+});
+
+app.get('/api/site/job/:id', (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Unknown or expired job.' });
+  res.json({ status: job.status, result: job.result, error: job.error });
 });
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
