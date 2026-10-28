@@ -105,7 +105,7 @@ function ManualForm({ onManual, loading }) {
   );
 }
 
-export function CompanyStep({ onLoad, onManual, loading, error, status }) {
+export function CompanyStep({ onLoad, onManual, loading, error, status, current, onContinue }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [manual, setManual] = useState(false);
@@ -135,6 +135,17 @@ export function CompanyStep({ onLoad, onManual, loading, error, status }) {
       <StepHead n="1" title="Which company are we branding for?">
         We’ll pull their logo, colors and fonts, then study their website.
       </StepHead>
+
+      {current && !loading && (
+        <div className="current-co">
+          <div>
+            <span className="lbl">Currently loaded</span>
+            <b>{current.company.name}</b>
+            <small>Pull a different company below to replace it, or keep editing this one.</small>
+          </div>
+          <button className="btn btn-secondary" onClick={onContinue}>Continue editing</button>
+        </div>
+      )}
 
       <div className="search">
         <input

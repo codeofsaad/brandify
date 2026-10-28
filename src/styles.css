@@ -324,3 +324,22 @@ h1, h2, h3, p { margin: 0; }
 /* KPI values must never wrap mid-number; shrink with the tile instead. */
 .pv-kpi-v { white-space: nowrap; overflow-wrap: normal; font-size: clamp(17px, 6.2cqw, 26px); }
 .pv-kpi { container-type: inline-size; }
+
+/* ----- in-app confirm dialog ----- */
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(3, 45, 96, 0.45); padding: 20px; animation: fade 0.15s ease; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.modal { background: #fff; border-radius: 16px; padding: 26px 28px; width: min(440px, 100%); box-shadow: 0 20px 60px rgba(3, 45, 96, 0.35); }
+.modal h2 { font-size: 20px; color: var(--t-navy); }
+.modal p { margin-top: 10px; color: var(--t-muted); font-size: 14.5px; line-height: 1.55; }
+.modal p b { color: var(--t-ink); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+/* ----- currently loaded company on step 1 ----- */
+.current-co { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; margin-bottom: 20px; border: 1px solid #c6e0f7; background: var(--t-blue-tint); border-radius: 12px; }
+.current-co b { display: block; font-size: 16px; color: var(--t-navy); }
+.current-co small { display: block; margin-top: 2px; color: var(--t-muted); font-size: 12.5px; }
+.current-co .lbl { margin-bottom: 2px; }
+
+/* Precaution against a hover flicker: no backdrop blur on the fixed bar, and no transitions on the result rows. */
+.bar { background: rgba(255,255,255,0.98); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.results button, .results li { transition: none; }

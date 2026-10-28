@@ -29,10 +29,18 @@ export default function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [resetKey, setResetKey] = useState(0);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     fetch('/api/status').then((r) => r.json()).then((s) => setAnalysisEnabled(Boolean(s.analysisEnabled))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!confirmReset) return;
+    const onKey = (e) => e.key === 'Escape' && setConfirmReset(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmReset]);
 
   const md = useMemo(() => (m ? renderDesignMd(m) : ''), [m]);
   const stale = generatedMd != null && generatedMd !== md;
@@ -149,7 +157,7 @@ export default function App() {
   const reset = () => setM((prev) => ({ ...prev.detected, detected: prev.detected }));
 
   const startOver = () => {
-    if (!window.confirm('Start over? Your current company and any edits will be cleared.')) return;
+    setConfirmReset(false);
     setM(null);
     setStep(0);
     setGeneratedMd(null);
@@ -186,7 +194,7 @@ export default function App() {
           <b>Brandify</b>
           <span>Design guides for Tableau Data Apps</span>
         </div>
-        <div className="topbar-r">{m && <button className="btn-over" onClick={startOver}>Start over</button>}</div>
+        <div className="topbar-r">{m && <button className="btn-over" onClick={() => setConfirmReset(true)}>Start over</button>}</div>
       </header>
 
       <section className="hero">
@@ -212,9 +220,9 @@ export default function App() {
         </ol>
       </nav>
 
-      <div className={`shell ${step === 0 && !m ? 'solo' : ''}`}>
+      <div className={`shell ${step === 0 ? 'solo' : ''}`}>
         <main className="main">
-          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} />}
+          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} current={m} onContinue={() => setStep(1)} />}
           {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} />}
           {m && step === 2 && <TypographyStep m={m} setFont={setFont} setTypo={setTypo} />}
           {m && step === 3 && <ShapeStep m={m} setShape={setShape} analysisEnabled={analysisEnabled} analyzing={analyzing} error={analyzeError} onAnalyze={analyze} setCharacter={setCharacter} clearCharacter={clearCharacter} />}
@@ -222,7 +230,7 @@ export default function App() {
           {m && step === 5 && <ReviewStep m={m} md={generatedMd ?? md} generated={generatedMd != null} stale={stale} onReset={reset} />}
         </main>
 
-        {(m || step !== 0) && (
+        {step !== 0 && (
           <aside className="side">
             {m ? <Preview m={m} /> : null}
           </aside>
@@ -235,15 +243,28 @@ export default function App() {
           <div className="bar-r">
             <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
             {!last && <button className="btn btn-secondary" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}
-            {isGenerated && <button className="btn btn-ghost" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
-            {isGenerated ? (
+            {step > 0 && isGenerated && <button className="btn btn-ghost" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
+            {step > 0 && (isGenerated ? (
               <button className="btn btn-primary btn-lg" onClick={download}>Download Design File</button>
             ) : (
               <button className="btn btn-primary btn-lg" disabled={!m} onClick={generate}>{stale ? 'Regenerate Design File' : 'Generate Design File'}</button>
-            )}
+            ))}
           </div>
         </div>
       </footer>
+
+      {confirmReset && (
+        <div className="modal-backdrop" onClick={() => setConfirmReset(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="reset-title">Start over?</h2>
+            <p>This clears {m ? <b>{m.company.name}</b> : 'the current company'} and any changes you made. Nothing you have already downloaded is affected.</p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" autoFocus onClick={() => setConfirmReset(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={startOver}>Start over</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
