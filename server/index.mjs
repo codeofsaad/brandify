@@ -25,6 +25,7 @@ const fixtures = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/brand
 const app = express();
 app.set('trust proxy', 1); // behind Heroku's router, so req.ip is the real client
 app.disable('x-powered-by');
+app.set('etag', false);
 if (PASSWORD) app.use(requirePassword(PASSWORD));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 60 }));
@@ -231,9 +232,25 @@ app.get('/api/site/job/:id', (req, res) => {
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 if (existsSync(dist)) {
-  app.use(express.static(dist));
-  // Single-page app: unknown non-API routes get index.html.
-  app.get(/^\/(?!api\/|out\/).*/, (_req, res) => res.sendFile(`${dist}index.html`));
+  // Buildpack builds stamp every file with the same fixed date, so ETag/Last-Modified (size + date) can claim a changed
+  // index.html is "not modified" and browsers keep a page pointing at deleted scripts. Disable validators, never cache the
+  // HTML, and cache the content-hashed assets forever.
+  app.use(
+    express.static(dist, {
+      etag: false,
+      lastModified: false,
+      index: false,
+      setHeaders: (res, filePath) => {
+        res.set('Cache-Control', filePath.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store');
+      },
+    }),
+  );
+  // Read the HTML once and send it from memory: no file date, no ETag, so a browser can never get a stale 304.
+  const indexHtml = readFileSync(`${dist}index.html`, 'utf8');
+  const sendIndex = (_req, res) => res.set('Cache-Control', 'no-store').type('html').send(indexHtml);
+  app.get('/', sendIndex);
+  // Single-page app: unknown routes get index.html, but a missing script/style must be a real 404, never HTML.
+  app.get(/^\/(?!api\/|out\/|assets\/).*/, sendIndex);
 }
 
 // Heroku Fir spaces route over IPv6, so production binds to '::' (dual-stack) instead of IPv4 only.
