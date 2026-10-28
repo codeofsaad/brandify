@@ -213,12 +213,16 @@ app.post('/api/site/start', (req, res) => {
   const input = rawUrl || domain;
   queue = queue.then(async () => {
     job.status = 'running';
+    const t0 = Date.now();
+    console.log(`[job ${id.slice(0, 8)}] start ${domain}`);
     try {
       job.result = await analyzeSite({ input, domain, screenshotUrl: req.body?.screenshotUrl });
       job.status = 'done';
+      console.log(`[job ${id.slice(0, 8)}] done in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${job.result.site ? 'measured site' : `no site (${job.result.siteError})`}`);
     } catch (e) {
       job.error = e.message;
       job.status = 'error';
+      console.log(`[job ${id.slice(0, 8)}] error after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e.message}`);
     }
   });
   res.json({ jobId: id });

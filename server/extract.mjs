@@ -1,21 +1,39 @@
 // Loads a company site in headless Chromium and samples computed styles.
 // Returns raw tallies; interpretation happens in src/lib/synthesize.js.
 import { chromium } from 'playwright';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { assertPublicUrl } from './security.mjs';
 
 const OUT_ROOT = fileURLToPath(new URL('../out/', import.meta.url));
 
+// Step-by-step timing in the app log, so a slow or stuck analysis can be diagnosed from `heroku logs`.
+function memSnapshot() {
+  const mb = (n) => `${Math.round(n / 1048576)}MB`;
+  let cg = '';
+  try {
+    cg = ` cgroup=${mb(Number(readFileSync('/sys/fs/cgroup/memory.current', 'utf8')))}/${(readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim())}`;
+  } catch {}
+  return `rss=${mb(process.memoryUsage().rss)}${cg}`;
+}
+function makeLog(label) {
+  const t0 = Date.now();
+  return (msg) => console.log(`[site ${label}] +${((Date.now() - t0) / 1000).toFixed(1)}s ${msg} (${memSnapshot()})`);
+}
+
 // On Heroku (Linux, buildpack stack) there are no system browser libraries, so use the self-contained
 // Chromium from @sparticuz/chromium. Locally (macOS) use the Chromium that `playwright install` fetched.
-async function launchBrowser() {
+async function launchBrowser(log = () => {}) {
   const hosted = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO) || process.env.BRANDIFY_NO_SANDBOX === '1';
   if (hosted && process.platform === 'linux' && process.env.BRANDIFY_CHROMIUM !== 'system') {
     const { default: bundled } = await import('@sparticuz/chromium');
+    log('preparing bundled Chromium');
+    const executablePath = await bundled.executablePath();
+    log(`Chromium ready at ${executablePath}`);
     return chromium.launch({
-      executablePath: await bundled.executablePath(),
+      executablePath,
       args: [...bundled.args, '--no-sandbox', '--disable-dev-shm-usage'],
+      timeout: 45000,
     });
   }
   // Containers usually can't use Chromium's user-namespace sandbox.
@@ -29,12 +47,21 @@ export function siteUrl(input) {
 
 export async function extractSite(input) {
   const url = siteUrl(input);
+  const log = makeLog(new URL(url).hostname);
+  log('start');
   await assertPublicUrl(url); // refuse localhost / private network targets
+  log('url allowed');
   const domain = new URL(url).hostname.replace(/^www\./, '');
   const dir = `${OUT_ROOT}${domain}/`;
   mkdirSync(dir, { recursive: true });
 
-  const browser = await launchBrowser();
+  const browser = await launchBrowser(log);
+  log('browser launched');
+  // Hard stop: closing the browser makes every pending step reject, so a stuck page can never hang the job.
+  const deadline = setTimeout(() => {
+    log('deadline reached (80s); closing browser');
+    browser.close().catch(() => {});
+  }, 80000);
   try {
     const ctx = await browser.newContext({
       viewport: { width: 1440, height: 900 },
@@ -57,8 +84,10 @@ export async function extractSite(input) {
     let status = 'ok';
     let httpStatus = 0;
     try {
+      log('navigating');
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       httpStatus = resp?.status() ?? 0;
+      log(`loaded, http ${httpStatus}`);
       await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(2500);
       for (const name of [/accept all/i, /accept/i, /agree/i, /got it/i]) {
@@ -71,6 +100,7 @@ export async function extractSite(input) {
       await page.waitForTimeout(800);
     } catch (e) {
       status = `navigation problem: ${e.message.split('\n')[0]}`;
+      log(status);
     }
 
     // Many large sites refuse automated browsers and serve an error page. Never measure or screenshot that page.
@@ -81,13 +111,16 @@ export async function extractSite(input) {
       return result;
     }
 
+    log('taking screenshot and measuring styles');
     await page.screenshot({ path: `${dir}home.png` });
     const style = await page.evaluate(sampleStyles);
+    log('done');
     const result = { url, domain, status, screenshot: `/out/${domain}/home.png`, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
     return result;
   } finally {
-    await browser.close();
+    clearTimeout(deadline);
+    await browser.close().catch(() => {});
   }
 }
 
