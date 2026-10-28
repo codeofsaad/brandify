@@ -18,48 +18,49 @@ npm run dev              # http://localhost:5173
 | `BRANDFETCH_API_KEY` | Pulling brand data (required for companies outside the 3 built-in demos) |
 | `BRANDFETCH_CLIENT_ID` | Company name search suggestions (optional; without it, type a domain) |
 | `ANTHROPIC_API_KEY` | Optional "Visual character" screenshot analysis |
-| `BRANDIFY_PASSWORD` | Required in production; shared password for the whole app |
+| `BRANDIFY_PASSWORD` | Shared password for the whole app (production without SSO) |
+| `BRANDIFY_AUTH=sso` | Production only: skip the password because the platform already authenticates users |
 
 `npm run dev:alt` runs a second copy on ports 5183/5184 (handy for testing alongside your main one).
 
-## Deploy to Heroku (container)
+## Deploy to Heroku (Salesforce SE teams)
 
-Brandify needs a real server (headless Chromium + secret API keys), so it can't run inside Tableau. It runs well on Heroku
-using the included `Dockerfile` and `heroku.yml`. Use a dyno with at least 1 GB RAM (Standard-2X); Chromium is memory hungry.
+Follow the "How-To Heroku for Salesforce Sales and SE" canvas. Key rules: every app is owned by a **team**, runs in the
+team's **internal Fir space**, is **locked**, and keeps secrets in **config vars**. No personal-space apps. Fir builds
+with Cloud Native Buildpacks (no Docker), and the app must bind to IPv6 (`::`), which Brandify does in production.
 
 ```bash
-heroku login
-heroku create your-brandify-name
-heroku stack:set container
+heroku login                      # enter sfdc-sso when asked for the org
+heroku apps:create <app-name> --space se-amer-reg-internal --team se-amer-reg
+heroku apps:lock --app <app-name>
 
-heroku config:set \
-  BRANDIFY_PASSWORD='choose-a-long-passphrase' \
-  BRANDFETCH_API_KEY='...' \
-  BRANDFETCH_CLIENT_ID='...'
-# optional: heroku config:set ANTHROPIC_API_KEY='...'
+# Secrets: type them yourself, never commit them
+heroku config:set BRANDFETCH_API_KEY=... BRANDFETCH_CLIENT_ID=... BRANDIFY_AUTH=sso --app <app-name>
+# Optional: heroku config:set ANTHROPIC_API_KEY=... --app <app-name>
 
-git push heroku main        # Brandify must be its own git repo (see below)
-heroku ps:type web=standard-2x
-heroku open
+heroku git:remote --app <app-name>
+git push heroku main              # builds with the Node buildpack (runs `npm run build`)
+heroku logs --tail --app <app-name>
 ```
 
-The browser will ask for a password; any username works, the password is `BRANDIFY_PASSWORD`.
+Open the app at the `*.herokuapp-internal.com` URL (the plain `.herokuapp.com` URL is disabled). Okta SSO signs people in.
 
-In production the server refuses to start without `BRANDIFY_PASSWORD`.
+### How it runs on Heroku
+
+- `Procfile` starts one web process: `node server/index.mjs`. The same process serves the built React app and the API.
+- Website analysis uses the self-contained Chromium from `@sparticuz/chromium` on Linux, because buildpack dynos have
+  no system browser libraries. Locally it uses Playwright's Chromium.
+- Heroku's disk is ephemeral: screenshots are regenerated on every pull; nothing persists between restarts.
 
 ### Built-in protections
 
-- Shared-password HTTP Basic auth on every route.
 - Rate limit: 30 pulls/analyses per IP per 15 minutes, 60 searches per minute.
 - The website analyzer only reaches public internet hosts. `localhost`, private networks and cloud metadata addresses are
   blocked, including for redirects and every sub-request the page makes.
 - Domain inputs are validated before they touch the filesystem.
-- Chromium runs with `--no-sandbox` in containers (required there), so keep the password on and don't share the URL widely.
-
-### Notes
-
-- Heroku's disk is ephemeral: screenshots are regenerated on every pull, and nothing is stored between restarts.
-- Never commit `.env`. It is in `.gitignore` and `.dockerignore`. Set secrets with `heroku config:set`.
+- Optional shared-password HTTP Basic auth (`BRANDIFY_PASSWORD`). In production the server refuses to start with neither
+  a password nor `BRANDIFY_AUTH=sso`.
+- Chromium runs with `--no-sandbox` in hosted environments (required there), so keep the app inside the internal space.
 
 ## Project layout
 

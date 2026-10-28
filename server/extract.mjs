@@ -7,6 +7,21 @@ import { assertPublicUrl } from './security.mjs';
 
 const OUT_ROOT = fileURLToPath(new URL('../out/', import.meta.url));
 
+// On Heroku (Linux, buildpack stack) there are no system browser libraries, so use the self-contained
+// Chromium from @sparticuz/chromium. Locally (macOS) use the Chromium that `playwright install` fetched.
+async function launchBrowser() {
+  const hosted = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_NO_SANDBOX === '1';
+  if (hosted && process.platform === 'linux' && process.env.BRANDIFY_CHROMIUM !== 'system') {
+    const { default: bundled } = await import('@sparticuz/chromium');
+    return chromium.launch({
+      executablePath: await bundled.executablePath(),
+      args: [...bundled.args, '--no-sandbox', '--disable-dev-shm-usage'],
+    });
+  }
+  // Containers usually can't use Chromium's user-namespace sandbox.
+  return chromium.launch({ args: hosted ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
+}
+
 export function siteUrl(input) {
   if (input.startsWith('http')) return input;
   return `https://www.${input.replace(/^www\./, '')}`;
@@ -19,9 +34,7 @@ export async function extractSite(input) {
   const dir = `${OUT_ROOT}${domain}/`;
   mkdirSync(dir, { recursive: true });
 
-  // Containers (Heroku, Docker) usually can't use Chromium's user-namespace sandbox.
-  const hosted = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_NO_SANDBOX === '1';
-  const browser = await chromium.launch({ args: hosted ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
+  const browser = await launchBrowser();
   try {
     const ctx = await browser.newContext({
       viewport: { width: 1440, height: 900 },

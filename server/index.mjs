@@ -8,8 +8,10 @@ const PRODUCTION = process.env.NODE_ENV === 'production';
 // In production the platform assigns PORT; in dev PORT may belong to other tools, so use a dedicated variable.
 const PORT = PRODUCTION ? process.env.PORT || 8080 : process.env.BRANDIFY_API_PORT || 5174;
 const PASSWORD = process.env.BRANDIFY_PASSWORD || '';
-if (PRODUCTION && !PASSWORD) {
-  console.error('Refusing to start in production without BRANDIFY_PASSWORD. Set it to protect the app and your API credits.');
+// BRANDIFY_AUTH=sso means the platform already authenticates every visitor (Heroku internal space behind Okta SSO).
+const SSO = process.env.BRANDIFY_AUTH === 'sso';
+if (PRODUCTION && !PASSWORD && !SSO) {
+  console.error('Refusing to start in production without BRANDIFY_PASSWORD (or BRANDIFY_AUTH=sso when the platform enforces SSO).');
   process.exit(1);
 }
 const API_KEY = process.env.BRANDFETCH_API_KEY || '';
@@ -195,4 +197,8 @@ if (existsSync(dist)) {
   app.get(/^\/(?!api\/|out\/).*/, (_req, res) => res.sendFile(`${dist}index.html`));
 }
 
-app.listen(PORT, () => console.log(`Brandify API on http://localhost:${PORT}  (brandfetch key: ${API_KEY ? 'yes' : 'no, demo data only'})`));
+// Heroku Fir spaces route over IPv6, so production binds to '::' (dual-stack) instead of IPv4 only.
+const HOST = PRODUCTION ? '::' : undefined;
+app.listen(PORT, HOST, () =>
+  console.log(`Brandify on port ${PORT}${HOST ? ` (${HOST})` : ''}  brandfetch key: ${API_KEY ? 'yes' : 'no, demo data only'}  auth: ${PASSWORD ? 'password' : SSO ? 'sso' : 'none (dev)'}`),
+);

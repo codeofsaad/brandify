@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "concurrently -k -n api,web \"node --env-file-if-exists=.env server/index.mjs\" \"vite\"",
     "build": "vite build",
-    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "start": "node server/index.mjs",
     "extract": "node scripts/extract-style.mjs",
     "dev:alt": "concurrently -k -n api,web \"BRANDIFY_API_PORT=5184 node --env-file-if-exists=.env server/index.mjs\" \"BRANDIFY_API_PORT=5184 vite --port 5183\""
   },
@@ -16,6 +16,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@sparticuz/chromium": "^153.0.0",
     "express": "^5.3.0",
     "playwright": "^1.64.1",
     "react": "^19.3.1",
@@ -25,5 +26,8 @@
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
     "vite": "^8.3.5"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
