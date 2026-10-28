@@ -177,7 +177,7 @@ Contrast check: ${lowContrast}
 
 ### Chart palettes
 
-- **Categorical** (in order): ${pal(m.palettes.categorical)}
+- **Categorical** (in order): ${pal(m.palettes.categorical)}${m.palettes.sources ? '\n  - Sources in order: ' + m.palettes.sources.join(', ') + ' (brand and site colors are the company\'s own; derived colors were chosen to harmonize with them; use at most 7 colors per chart plus the neutral for context)' : ''}
 - **Sequential** (light → dark): ${pal(m.palettes.sequential)}
 - **Diverging** (negative → positive): ${pal(m.palettes.diverging)}
 

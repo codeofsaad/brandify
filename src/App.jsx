@@ -141,10 +141,10 @@ export default function App() {
     update((n) => {
       n.colors[key] = hex;
       n.prov[key] = 'edited';
-      if (key === 'primary' || key === 'accent') n.palettes = derivePalettes(n.colors);
+      if (key === 'primary' || key === 'accent') n.palettes = derivePalettes(n.colors, n.paletteContext);
     });
-  const setPalette = (kind, i, hex) => update((n) => { n.palettes[kind][i] = hex; });
-  const regenPalettes = () => update((n) => { n.palettes = derivePalettes(n.colors); });
+  const setPalette = (kind, i, hex) => update((n) => { n.palettes[kind][i] = hex; if (kind === 'categorical' && n.palettes.sources) n.palettes.sources[i] = 'edited'; });
+  const regenPalettes = () => update((n) => { n.palettes = derivePalettes(n.colors, n.paletteContext); });
   const setFont = (role, family) =>
     update((n) => {
       n.typography[role].family = family;
@@ -282,9 +282,9 @@ export default function App() {
           <span className="bar-step">{m ? `Step ${step + 1} of ${STEPS.length} · ${STEPS[step][0]}` : 'Enter a company to begin'}</span>
           <div className="bar-r">
             <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
-            {!last && <button className="btn btn-secondary" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}
-            {step > 0 && isGenerated && <button className="btn btn-ghost" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
-            {step > 0 && (isGenerated ? (
+            {!last && <button className="btn btn-primary btn-lg" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}
+            {last && isGenerated && <button className="btn btn-ghost" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>}
+            {last && (isGenerated ? (
               <button className="btn btn-primary btn-lg" onClick={download}>Download Design File</button>
             ) : (
               <button className="btn btn-primary btn-lg" disabled={!m || generating} onClick={generate}>{generating ? 'Generating…' : stale ? 'Regenerate Design File' : 'Generate Design File'}</button>

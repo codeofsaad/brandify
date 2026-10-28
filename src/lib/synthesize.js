@@ -4,6 +4,7 @@ import {
   parseColor, normalizeHex, hexToHsl, hslHex, mix, ensureContrast, isNeutral, hueDistance, readableOn, contrast,
 } from './color.js';
 import { canonicalGoogleName, firstFamily, isWebAvailable, suggestSubstitute } from './fonts.js';
+import { generatePalettes, hexToOklch } from './palette.js';
 
 const px = (v) => (v == null ? NaN : parseFloat(v));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -33,60 +34,28 @@ function chromaticStats(site) {
   return { ranked, share };
 }
 
-export function categorical(primary, accent) {
-  const seeds = [primary, accent].filter(Boolean).filter((c) => !isNeutral(c, 0.1));
-  const base = seeds[0] || primary || '#0176D3';
-  const [bh, bs, bl] = hexToHsl(base);
-  const s = clamp(bs, 0.45, 0.72);
-  const l = clamp(bl, 0.4, 0.55);
-  const out = [...seeds];
-  if (!seeds.length && primary) out.push(primary);
-  const hues = out.map((c) => hexToHsl(c)[0]);
-  for (const off of [150, 60, 210, 300, 100, 20, 255, 330]) {
-    if (out.length >= 7) break;
-    const h = (bh + off) % 360;
-    if (hues.every((x) => hueDistance(x, h) >= 28)) {
-      out.push(hslHex(h, s, l));
-      hues.push(h);
-    }
+// Colours the company's interface actually uses (CSS, icons), weighted by how much of its chromatic colour they cover.
+function harvestFromSite(site) {
+  const merged = new Map();
+  for (const { value, count } of site?.colors?.all || []) {
+    const hex = normalizeHex(value);
+    if (!hex) continue;
+    const { L, C } = hexToOklch(hex);
+    if (C < 0.045 || L < 0.2 || L > 0.92) continue; // greys, near-black and near-white are not accents
+    merged.set(hex, (merged.get(hex) || 0) + count);
   }
-  while (out.length < 7) out.push(hslHex((bh + out.length * 47) % 360, s, l));
-  out.push('#8A949E'); // neutral slot for "other"
-  return out.slice(0, 8);
+  const total = [...merged.values()].reduce((s, n) => s + n, 0) || 1;
+  return [...merged.entries()].map(([hex, n]) => ({ hex, weight: n / total })).sort((a, b) => b.weight - a.weight).slice(0, 12);
 }
 
-export function sequential(base) {
-  const [h, s] = hexToHsl(base);
-  const sat = isNeutral(base, 0.08) ? 0.04 : clamp(s, 0.35, 0.85);
-  return [0.94, 0.85, 0.74, 0.62, 0.5, 0.38, 0.26].map((l) => hslHex(h, l > 0.8 ? sat * 0.8 : sat, l));
-}
-
-function divergingRamp(low, high) {
-  const mid = '#F2F2F0';
-  const left = [1, 0.7, 0.4].map((t) => mix(mid, low, t));
-  const right = [0.4, 0.7, 1].map((t) => mix(mid, high, t));
-  return [...left, mid, ...right];
-}
-
-export function derivePalettes(colors) {
-  const { primary, accent } = colors;
-  const seqBase = isNeutral(primary, 0.1) && accent ? accent : primary;
-  let low = isNeutral(primary, 0.1) ? (accent ? accent : '#2B6CB0') : primary;
-  let high = accent && hueDistance(hexToHsl(low)[0], hexToHsl(accent)[0]) > 40 && !isNeutral(accent, 0.1) ? accent : null;
-  if (!high) {
-    const [h, s, l] = hexToHsl(low);
-    high = hslHex((h + 180) % 360, clamp(s, 0.5, 0.75), clamp(l, 0.4, 0.55));
-  }
-  if (isNeutral(primary, 0.1) && accent) {
-    const [h, s, l] = hexToHsl(accent);
-    low = accent;
-    high = hslHex((h + 180) % 360, clamp(s, 0.5, 0.75), clamp(l, 0.4, 0.55));
-  }
-  return {
-    categorical: categorical(primary, accent),
-    sequential: sequential(seqBase),
-    diverging: divergingRamp(low, high),
-  };
+// ctx: { extras: brand colours beyond primary/accent, harvest: colours measured on the site }
+export function derivePalettes(colors, ctx = {}) {
+  return generatePalettes({
+    // An accent we invented (the brand has none) must not steer the palette; only real brand colours do.
+    brand: [colors.primary, ctx.accentIsInvented ? null : colors.accent, ...(ctx.extras || [])].filter(Boolean),
+    harvest: ctx.harvest || [],
+    accent: colors.accent,
+  });
 }
 
 function pickColors(brand, site) {
@@ -288,7 +257,13 @@ function pickLogo(logos) {
 // ---------- entry point ----------
 
 export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null }) {
-  const { colors, prov, alternatives, monochrome } = pickColors(brand, site);
+  const { colors, prov, alternatives, monochrome, bfAll } = pickColors(brand, site);
+  // Extra colours that inform the chart palettes: the brand's other listed colours, and what the site's interface uses.
+  const paletteContext = {
+    extras: [...(alternatives.primary || []).map((a) => a.hex), ...(bfAll || []).filter((c) => ['brand', 'primary', 'accent'].includes(c.type)).map((c) => c.hex)],
+    harvest: harvestFromSite(site),
+    accentIsInvented: prov.accent === 'derived' || prov.accent === 'default',
+  };
   const typography = pickTypography(brand, site, monochrome);
   const shape = pickShape(site, monochrome);
   const logos = collectLogos(brand);
@@ -318,7 +293,8 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     colors,
     prov: { ...prov, ...Object.fromEntries(Object.keys(typography).map((k) => [`font-${k}`, typography[k].source])) },
     alternatives,
-    palettes: derivePalettes(colors),
+    paletteContext,
+    palettes: derivePalettes(colors, paletteContext),
     typography,
     shape,
     logos,

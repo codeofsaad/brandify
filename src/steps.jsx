@@ -224,12 +224,19 @@ function Swatch({ hex, onChange, label }) {
   );
 }
 
-function PaletteStrip({ title, hint, colors, onEdit }) {
+const SOURCE_LABEL = { brand: 'Brand', site: 'Website', derived: 'Derived', neutral: 'Neutral', edited: 'Edited' };
+
+function PaletteStrip({ title, hint, colors, onEdit, sources }) {
   return (
     <div className="pal">
       <div className="pal-t"><b>{title}</b><span>{hint}</span></div>
       <div className="pal-strip">
-        {colors.map((c, i) => <Swatch key={i} hex={c} label={c} onChange={(v) => onEdit(i, v)} />)}
+        {colors.map((c, i) => (
+          <div key={i} className="pal-cell">
+            <Swatch hex={c} label={c} onChange={(v) => onEdit(i, v)} />
+            {sources && <small className={`pal-src pal-src-${sources[i]}`}>{SOURCE_LABEL[sources[i]] || ''}</small>}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -281,7 +288,7 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes }) {
         <h3>Chart palettes</h3>
         <button className="btn btn-ghost" onClick={regenPalettes}>Regenerate from primary + accent</button>
       </div>
-      <PaletteStrip title="Categorical" hint="Unordered categories" colors={m.palettes.categorical} onEdit={(i, v) => setPalette('categorical', i, v)} />
+      <PaletteStrip title="Categorical" hint="Unordered categories. Brand and Website colors are real; Derived ones harmonize with them." colors={m.palettes.categorical} sources={m.palettes.sources} onEdit={(i, v) => setPalette('categorical', i, v)} />
       <PaletteStrip title="Sequential" hint="Low → high magnitude" colors={m.palettes.sequential} onEdit={(i, v) => setPalette('sequential', i, v)} />
       <PaletteStrip title="Diverging" hint="Negative → positive around a midpoint" colors={m.palettes.diverging} onEdit={(i, v) => setPalette('diverging', i, v)} />
     </section>

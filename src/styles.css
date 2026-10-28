@@ -126,6 +126,8 @@ h1, h2, h3, p { margin: 0; }
 .pal-t span { font-size: 12px; color: var(--t-muted); }
 .pal-strip { display: flex; gap: 6px; }
 .pal-strip .swatch { flex: 1; width: auto; height: 44px; }
+.pal-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pal-cell .swatch { width: 100%; }
 
 /* ----- typography ----- */
 .fonts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -347,3 +349,9 @@ h1, h2, h3, p { margin: 0; }
 /* ----- stale-tab banner ----- */
 .update-banner { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px 20px; background: #fff3d6; color: #5c3b00; border-bottom: 1px solid #f0d28a; font-size: 14px; line-height: 1.45; }
 .update-banner .btn { padding: 7px 16px; flex: none; }
+
+.pal-src { font-size: 10.5px; font-weight: 600; text-align: center; color: var(--t-muted); letter-spacing: 0.2px; }
+.pal-src-brand { color: #0b5cab; } .pal-src-site { color: #1d6b37; } .pal-src-edited { color: var(--t-purple); }
+
+/* swatches inside a caption cell must keep their height (flex:1 in a column collapses to 0) */
+.pal-cell .swatch { flex: none; height: 44px; width: 100%; }

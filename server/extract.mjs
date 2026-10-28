@@ -154,11 +154,19 @@ function sampleStyles() {
     const cs = getComputedStyle(el);
     return r.width > 4 && r.height > 4 && cs.visibility !== 'hidden' && cs.display !== 'none';
   };
-  const tally = (arr) => {
+  const tally = (arr, n = 6) => {
     const m = new Map();
     for (const v of arr) if (v != null && v !== '') m.set(v, (m.get(v) || 0) + 1);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([value, count]) => ({ value, count }));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([value, count]) => ({ value, count }));
   };
+  // Every colour the interface itself uses (text, fills, borders, icon fills/strokes), not photos.
+  const usedColors = [];
+  for (const el of all) {
+    const cs = getComputedStyle(el);
+    for (const c of [cs.color, cs.backgroundColor, cs.borderTopColor, cs.fill, cs.stroke]) {
+      if (c && c !== 'none' && c !== 'rgba(0, 0, 0, 0)') usedColors.push(c);
+    }
+  }
   const all = [...document.querySelectorAll('body *')].filter(visible).slice(0, 4000);
 
   const buttons = all.filter(
@@ -227,6 +235,7 @@ function sampleStyles() {
       backgrounds: tally(all.map((el) => getComputedStyle(el).backgroundColor).filter((c) => c !== 'rgba(0, 0, 0, 0)')),
       text: tally(all.map((el) => getComputedStyle(el).color)),
       links: tally([...document.querySelectorAll('a')].filter(visible).map((a) => getComputedStyle(a).color)),
+      all: tally(usedColors, 60),
     },
     spacing: {
       sectionPaddingTop: tally(sections.map((s) => getComputedStyle(s).paddingTop)),
