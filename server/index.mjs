@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
 
-const PRODUCTION = process.env.NODE_ENV === 'production';
+// The Fir Node buildpack does not set NODE_ENV at runtime, so hosting is detected explicitly:
+// BRANDIFY_HOSTED=1 (set as a config var), NODE_ENV=production, or Heroku's DYNO variable.
+const PRODUCTION = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO);
 // In production the platform assigns PORT; in dev PORT may belong to other tools, so use a dedicated variable.
 const PORT = PRODUCTION ? process.env.PORT || 8080 : process.env.BRANDIFY_API_PORT || 5174;
 const PASSWORD = process.env.BRANDIFY_PASSWORD || '';

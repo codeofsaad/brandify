@@ -10,7 +10,7 @@ const OUT_ROOT = fileURLToPath(new URL('../out/', import.meta.url));
 // On Heroku (Linux, buildpack stack) there are no system browser libraries, so use the self-contained
 // Chromium from @sparticuz/chromium. Locally (macOS) use the Chromium that `playwright install` fetched.
 async function launchBrowser() {
-  const hosted = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_NO_SANDBOX === '1';
+  const hosted = process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO) || process.env.BRANDIFY_NO_SANDBOX === '1';
   if (hosted && process.platform === 'linux' && process.env.BRANDIFY_CHROMIUM !== 'system') {
     const { default: bundled } = await import('@sparticuz/chromium');
     return chromium.launch({
