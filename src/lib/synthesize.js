@@ -97,8 +97,17 @@ function pickColors(brand, site) {
   const bfDark = bf('dark');
   const bfLight = bf('light');
 
+  // Brandfetch sometimes lists a pale gray as the "accent" of a black-and-white brand. Only trust real colors.
+  const realColor = (c) => {
+    if (!c) return null;
+    const [, sat, light] = hexToHsl(c);
+    return sat >= 0.12 && light > 0.15 && light < 0.9 ? c : null;
+  };
+  const brandUse = realColor(bfBrand);
+  const accentUse = realColor(bfAccent);
+
   const stats = site ? chromaticStats(site) : { ranked: [], share: 0 };
-  const monochrome = site ? stats.share < 0.08 : !(bfBrand || bfAccent);
+  const monochrome = site ? stats.share < 0.08 : !(brandUse || accentUse);
   const prov = {};
   const alternatives = { primary: [], accent: [] };
 
@@ -106,11 +115,11 @@ function pickColors(brand, site) {
   if (monochrome) {
     primary = bfDark || '#111111';
     prov.primary = bfDark ? 'brandfetch' : 'default';
-    accent = bfAccent || bfBrand || stats.ranked[0]?.hex || null;
-    prov.accent = accent ? (bfAccent || bfBrand ? 'brandfetch' : 'measured') : 'default';
+    accent = accentUse || brandUse || stats.ranked[0]?.hex || null;
+    prov.accent = accent ? (accentUse || brandUse ? 'brandfetch' : 'measured') : 'default';
   } else {
     const measured = stats.ranked[0]?.hex;
-    primary = measured || bfBrand || bfAccent;
+    primary = measured || brandUse || accentUse;
     prov.primary = measured ? 'measured' : 'brandfetch';
     if (measured && bfBrand && bfBrand !== measured) alternatives.primary.push({ hex: bfBrand, source: 'brandfetch' });
     const hueOf = (c) => hexToHsl(c)[0];
