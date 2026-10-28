@@ -1,7 +1,7 @@
 import express from 'express';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
 
@@ -46,8 +46,12 @@ const cleanDomain = (v) =>
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const ANALYSIS_MODEL = process.env.BRANDIFY_ANALYSIS_MODEL || 'claude-sonnet-5-5';
 
+// Identifies the deployed web app so an already-open browser tab can tell it is out of date (set once dist is read).
+let BUILD_ID = 'dev';
+
 app.get('/api/status', (_req, res) => {
   res.json({
+    build: BUILD_ID,
     brandfetchKey: Boolean(API_KEY),
     searchEnabled: Boolean(CLIENT_ID),
     analysisEnabled: Boolean(ANTHROPIC_KEY),
@@ -277,6 +281,7 @@ if (existsSync(dist)) {
   );
   // Read the HTML once and send it from memory: no file date, no ETag, so a browser can never get a stale 304.
   const indexHtml = readFileSync(`${dist}index.html`, 'utf8');
+  BUILD_ID = createHash('sha1').update(indexHtml).digest('hex').slice(0, 10);
   const sendIndex = (_req, res) => res.set('Cache-Control', 'no-store').type('html').send(indexHtml);
   app.get('/', sendIndex);
   // Single-page app: unknown routes get index.html, but a missing script/style must be a real 404, never HTML.

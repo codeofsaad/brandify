@@ -27,6 +27,8 @@ export default function App() {
   const [generatedMd, setGeneratedMd] = useState(null);
   const [copied, setCopied] = useState(false);
   const [analysisEnabled, setAnalysisEnabled] = useState(false);
+  const [loadedBuild, setLoadedBuild] = useState(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [resetKey, setResetKey] = useState(0);
@@ -35,8 +37,23 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    fetch('/api/status').then((r) => r.json()).then((s) => setAnalysisEnabled(Boolean(s.analysisEnabled))).catch(() => {});
+    fetch('/api/status').then((r) => r.json()).then((s) => { setAnalysisEnabled(Boolean(s.analysisEnabled)); setLoadedBuild(s.build ?? null); }).catch(() => {});
   }, []);
+
+  // A tab left open across a deploy keeps running old code (and would generate an out-of-date design file).
+  // Compare the server's build id with the one this tab loaded, every minute and whenever the tab regains focus.
+  useEffect(() => {
+    if (!loadedBuild || loadedBuild === 'dev') return;
+    const check = () =>
+      fetch('/api/status', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((s) => s.build && s.build !== loadedBuild && setUpdateAvailable(true))
+        .catch(() => {});
+    const id = setInterval(check, 60000);
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [loadedBuild]);
 
   useEffect(() => {
     if (!confirmReset) return;
@@ -212,6 +229,13 @@ export default function App() {
         </div>
         <div className="topbar-r">{m && <button className="btn-over" onClick={() => setConfirmReset(true)}>Start over</button>}</div>
       </header>
+
+      {updateAvailable && (
+        <div className="update-banner" role="alert">
+          <span><b>A new version of Brandify is available.</b> Reload before generating a design file, or it may be missing recent improvements (such as the embedded logo). Reloading clears the current company.</span>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload now</button>
+        </div>
+      )}
 
       <section className="hero">
         <div className="hero-in">
