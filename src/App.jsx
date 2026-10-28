@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
 import { synthesize, withDetected, derivePalettes } from './lib/synthesize.js';
-import { renderDesignMd } from './lib/render.js';
+import { renderDesignMd, selectedLogo } from './lib/render.js';
+import { fetchLogoAsset } from './lib/logo.js';
 import { loadFont } from './lib/fonts.js';
 import { fetchJson, analyzeSite } from './lib/api.js';
 
@@ -30,6 +31,8 @@ export default function App() {
   const [analyzeError, setAnalyzeError] = useState('');
   const [resetKey, setResetKey] = useState(0);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [logoAssets, setLogoAssets] = useState({}); // keyed by logo URL: embedded copies of logos already fetched
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetch('/api/status').then((r) => r.json()).then((s) => setAnalysisEnabled(Boolean(s.analysisEnabled))).catch(() => {});
@@ -42,7 +45,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [confirmReset]);
 
-  const md = useMemo(() => (m ? renderDesignMd(m) : ''), [m]);
+  const currentLogo = m ? selectedLogo(m) : null;
+  const md = useMemo(() => (m ? renderDesignMd(m, { logoAsset: currentLogo ? logoAssets[currentLogo.url] : null }) : ''), [m, logoAssets]);
   const stale = generatedMd != null && generatedMd !== md;
   const isGenerated = generatedMd != null && !stale;
 
@@ -168,7 +172,19 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const generate = () => setGeneratedMd(md);
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      let asset = currentLogo ? logoAssets[currentLogo.url] : null;
+      if (currentLogo && !asset) {
+        asset = await fetchLogoAsset(currentLogo);
+        setLogoAssets((prev) => ({ ...prev, [currentLogo.url]: asset }));
+      }
+      setGeneratedMd(renderDesignMd(m, { logoAsset: asset }));
+    } finally {
+      setGenerating(false);
+    }
+  };
   const download = () => {
     const blob = new Blob([generatedMd], { type: 'text/markdown' });
     const a = document.createElement('a');
@@ -247,7 +263,7 @@ export default function App() {
             {step > 0 && (isGenerated ? (
               <button className="btn btn-primary btn-lg" onClick={download}>Download Design File</button>
             ) : (
-              <button className="btn btn-primary btn-lg" disabled={!m} onClick={generate}>{stale ? 'Regenerate Design File' : 'Generate Design File'}</button>
+              <button className="btn btn-primary btn-lg" disabled={!m || generating} onClick={generate}>{generating ? 'Generating…' : stale ? 'Regenerate Design File' : 'Generate Design File'}</button>
             ))}
           </div>
         </div>

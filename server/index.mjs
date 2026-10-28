@@ -28,7 +28,7 @@ app.disable('x-powered-by');
 app.set('etag', false);
 if (PASSWORD) app.use(requirePassword(PASSWORD));
 app.use(express.json({ limit: '100kb' }));
-app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 60 }));
+app.use(['/api/search', '/api/logo'], rateLimit({ windowMs: 60 * 1000, max: 60 }));
 // Only the expensive POSTs are limited; job polling (GET /api/site/job/:id) must not count.
 app.use(['/api/brand', '/api/site/start', '/api/analyze'], rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }));
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
@@ -156,6 +156,31 @@ async function fallbackScreenshot(url, domain) {
     return null;
   }
 }
+
+// Downloads a logo so the browser can embed it in the design file. Only Brandfetch's CDN is allowed, so this cannot be
+// pointed at other hosts. The sandbox CSP stops any script inside an SVG from running if someone opens it directly.
+app.get('/api/logo', async (req, res) => {
+  let u;
+  try {
+    u = new URL(String(req.query.url || ''));
+  } catch {
+    return res.status(400).json({ error: 'Invalid logo address.' });
+  }
+  if (u.protocol !== 'https:' || u.hostname !== 'cdn.brandfetch.io') return res.status(400).json({ error: 'Only Brandfetch logo addresses are allowed.' });
+  try {
+    const r = await fetch(u.href, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return res.status(502).json({ error: `The logo could not be downloaded (${r.status}).` });
+    const type = (r.headers.get('content-type') || '').split(';')[0];
+    if (!/^image\/(svg\+xml|png|jpeg|webp)$/.test(type)) return res.status(502).json({ error: 'Unexpected logo file type.' });
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 2 * 1024 * 1024) return res.status(502).json({ error: 'The logo file is too large.' });
+    res
+      .set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'" })
+      .send(buf);
+  } catch (e) {
+    res.status(502).json({ error: `The logo could not be downloaded: ${e.message}` });
+  }
+});
 
 // Brandfetch identity data only. This returns quickly; the slow website analysis runs as a background job below,
 // because Heroku's router drops any request that takes longer than 30 seconds.

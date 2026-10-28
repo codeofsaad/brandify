@@ -65,7 +65,18 @@ function intent(m) {
 
 const src = (m, k) => ({ brandfetch: 'Brandfetch', measured: 'measured on site', derived: 'derived', default: 'default', edited: 'edited by you' }[m.prov[k]] || '');
 
-export function renderDesignMd(m) {
+function logoSection(logo, asset) {
+  if (!logo) return 'No logo selected.';
+  const what = `${logo.kind === 'logo' ? 'wordmark' : logo.kind} (${logo.theme === 'dark' ? 'dark mark for light backgrounds' : 'light mark for dark backgrounds'}), ${logo.format.toUpperCase()}`;
+  let embedded;
+  if (!asset) embedded = 'The logo file is embedded here when the design file is generated.';
+  else if (asset.failed) embedded = `The logo could not be embedded automatically (${asset.reason}). Ask the user to attach the logo file.`;
+  else if (asset.kind === 'svg') embedded = `**Embedded logo. Use this; do not download it.** Paste this SVG inline in the app header:\n\n\`\`\`svg\n${asset.svg}\n\`\`\``;
+  else embedded = `**Embedded logo. Use this; do not download it.** Use this data URI as the image source:\n\n\`\`\`text\n${asset.dataUri}\n\`\`\``;
+  return `Selected: ${what}\n\n${embedded}\n\nOriginal source (may require access, so prefer the embedded copy): ${logoRef(logo)}\n\nKeep clear space equal to the logo height around it and do not recolor it.`;
+}
+
+export function renderDesignMd(m, { logoAsset = null } = {}) {
   const c = m.colors;
   const t = m.typography;
   const s = m.shape;
@@ -104,7 +115,7 @@ export function renderDesignMd(m) {
     typography: { heading: { family: hf.family, weight: hf.weight, transform: hf.transform, tracking: hf.tracking }, body: { family: bf.family, weight: bf.weight } },
     shape: { cardRadius: s.cardRadius, buttonRadius: s.buttonRadius, shadow: SHADOWS[s.shadow], borderWidth: effectiveBorder(s), density: s.density },
     chart: { gridlines: s.gridlines, barRadius: s.barRadius, lineWidth: s.lineWidth },
-    logo: logo ? { kind: logo.kind, url: logoRef(logo) } : null,
+    logo: logo ? { kind: logo.kind, embedded: Boolean(logoAsset && !logoAsset.failed), source: logoRef(logo) } : null,
     ...(ch ? { character: ch } : {}),
   };
 
@@ -187,7 +198,7 @@ Use categorical for unordered categories, sequential for magnitude, and divergin
 
 ## Components
 
-- **Header:** ${logo ? `${logo.kind === "logo" ? "wordmark logo" : logo.kind + " mark"} (${logoRef(logo)}) at left, height 28–36px,` : 'company name in the heading font'} on ${c.surface}; ${s.borderWidth || s.shadow === 'none' ? 'a 1px bottom border' : 'subtle shadow'}.
+- **Header:** ${logo ? `${logo.kind === "logo" ? "wordmark logo" : logo.kind + " mark"} (embedded in the Logo section below) at left, height 28–36px,` : 'company name in the heading font'} on ${c.surface}; ${s.borderWidth || s.shadow === 'none' ? 'a 1px bottom border' : 'subtle shadow'}.
 - **KPI tile:** surface background, label in muted text${hf.transform === 'uppercase' ? ' (uppercase)' : ''}, value in the heading font at 32px, delta in success/danger color.
 - **Chart card:** title in the heading font, optional one-line subtitle in muted text, chart below. Card radius ${s.cardRadius}px.
 - **Filters:** compact controls on the surface color with ${s.borderWidth || 1}px border; selected state uses the primary color.
@@ -203,6 +214,13 @@ Use categorical for unordered categories, sequential for magnitude, and divergin
 - Axis labels and ticks use the muted text color at 12px.
 - Highlight one series or bar with the primary color and de-emphasize the rest with neutral tints when telling a single story.
 
+## Build notes for Claude
+
+- **Use the embedded logo** from the Logo section directly (inline SVG or data URI). Data apps often cannot reach the internet, so never depend on a logo link.
+- **Size charts to their container.** Measure the container's pixel width (for example with a ResizeObserver) and draw the SVG at that size, or use a viewBox with the container's aspect ratio. Never stretch a small fixed-size drawing across a wide card; it makes labels and markers oversized.
+- **Keep text and marks at fixed sizes** whatever the chart width: axis and label text 11–12px, data-point markers 3–4px radius, and the line weight given above.
+- **Fonts:** use the Google Fonts named above, with the generic family as a fallback if they cannot load.
+
 ${characterMd}## Do
 
 ${dos.map((x) => `- ${x}`).join('\n')}
@@ -213,7 +231,7 @@ ${donts.map((x) => `- ${x}`).join('\n')}
 
 ## Logo
 
-${logo ? `Selected: ${logo.kind === "logo" ? "wordmark" : logo.kind} (${logo.theme === 'dark' ? 'dark mark for light backgrounds' : 'light mark for dark backgrounds'}), ${logo.format.toUpperCase()}\n\n${logoRef(logo)}\n\nKeep clear space equal to the logo height around it and do not recolor it.` : 'No logo selected.'}
+${logoSection(logo, logoAsset)}
 
 ## Provenance and notes
 
