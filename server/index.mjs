@@ -193,13 +193,14 @@ async function analyzeSite({ input, domain, screenshotUrl }) {
     siteError = e.message;
   }
   // Nothing measured from a blocked or failed page is trustworthy; fall back to Brandfetch's screenshot.
-  const fallback = site ? null : await fallbackScreenshot(screenshotUrl, domain);
-  const screenshot = site ? site.screenshot : fallback;
+  const live = site?.screenshot || null;
+  const fallback = live ? null : await fallbackScreenshot(screenshotUrl, domain);
+  const screenshot = live || fallback;
   return {
     site,
     siteError,
     screenshot: screenshot ? `${screenshot}?v=${Date.now()}` : null,
-    screenshotSource: screenshot ? (site ? 'live' : 'brandfetch') : null,
+    screenshotSource: screenshot ? (live ? 'live' : 'brandfetch') : null,
   };
 }
 

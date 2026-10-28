@@ -325,7 +325,7 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     logoId: pickLogo(logos)?.id || null,
     monochrome,
     screenshot: site?.screenshot || screenshot || null,
-    screenshotSource: site ? 'live' : screenshotSource,
+    screenshotSource: site?.screenshot ? 'live' : screenshotSource,
     siteUrl: site?.url || null,
     character: null, // optional, filled by screenshot analysis
     notes,

@@ -40,6 +40,10 @@ async function launchBrowser(log = () => {}) {
   return chromium.launch({ args: hosted ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
 }
 
+// Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps, and skip the live
+// screenshot (Brandfetch's saved screenshot is used instead). Computed styles do not need those resources.
+const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
+
 export function siteUrl(input) {
   if (input.startsWith('http')) return input;
   return `https://www.${input.replace(/^www\./, '')}`;
@@ -48,7 +52,8 @@ export function siteUrl(input) {
 export async function extractSite(input) {
   const url = siteUrl(input);
   const log = makeLog(new URL(url).hostname);
-  log('start');
+  const light = isLight();
+  log(`start (${light ? 'light' : 'full'} mode)`);
   await assertPublicUrl(url); // refuse localhost / private network targets
   log('url allowed');
   const domain = new URL(url).hostname.replace(/^www\./, '');
@@ -71,6 +76,7 @@ export async function extractSite(input) {
     // Every request the page makes (including redirects and subresources) must target a public host.
     await ctx.route('**/*', async (route) => {
       try {
+        if (light && ['image', 'media', 'font', 'websocket', 'eventsource'].includes(route.request().resourceType())) return route.abort();
         const u = new URL(route.request().url());
         if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return route.continue();
         await assertPublicUrl(u.href);
@@ -88,16 +94,21 @@ export async function extractSite(input) {
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       httpStatus = resp?.status() ?? 0;
       log(`loaded, http ${httpStatus}`);
-      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(2500);
-      for (const name of [/accept all/i, /accept/i, /agree/i, /got it/i]) {
-        const btn = page.getByRole('button', { name }).first();
-        if (await btn.isVisible().catch(() => false)) {
-          await btn.click({ timeout: 2000 }).catch(() => {});
-          break;
+      await page.waitForLoadState('networkidle', { timeout: light ? 4000 : 15000 }).catch(() => {});
+      log('settled');
+      await page.waitForTimeout(light ? 800 : 2500);
+      if (!light) {
+        // Role-based lookups are expensive on heavy pages, so the cookie-banner click is skipped in light mode.
+        for (const name of [/accept all/i, /accept/i, /agree/i, /got it/i]) {
+          const btn = page.getByRole('button', { name }).first();
+          if (await btn.isVisible().catch(() => false)) {
+            await btn.click({ timeout: 2000 }).catch(() => {});
+            break;
+          }
         }
+        await page.waitForTimeout(800);
       }
-      await page.waitForTimeout(800);
+      log('ready to measure');
     } catch (e) {
       status = `navigation problem: ${e.message.split('\n')[0]}`;
       log(status);
@@ -111,11 +122,11 @@ export async function extractSite(input) {
       return result;
     }
 
-    log('taking screenshot and measuring styles');
-    await page.screenshot({ path: `${dir}home.png` });
+    log(light ? 'measuring styles (no live screenshot in light mode)' : 'taking screenshot and measuring styles');
+    if (!light) await page.screenshot({ path: `${dir}home.png` });
     const style = await page.evaluate(sampleStyles);
     log('done');
-    const result = { url, domain, status, screenshot: `/out/${domain}/home.png`, ...style };
+    const result = { url, domain, status, screenshot: light ? null : `/out/${domain}/home.png`, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
     return result;
   } finally {
