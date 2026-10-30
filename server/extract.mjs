@@ -138,7 +138,13 @@ export async function extractSite(input) {
 const BLOCK_RE = /access denied|forbidden|request blocked|captcha|are you (a )?robot|verify you are (a )?human|unusual traffic|attention required|just a moment|pardon our interruption|security check/i;
 
 async function detectBlock(page, httpStatus) {
-  const probe = await page.evaluate(() => ({ title: document.title || '', text: (document.body?.innerText || '').trim() })).catch(() => ({ title: '', text: '' }));
+  const read = () => page.evaluate(() => ({ title: document.title || '', text: (document.body?.innerText || '').trim() })).catch(() => ({ title: '', text: '' }));
+  let probe = await read();
+  // Some sites render late (or send a bare shell first). Give an empty page one more chance before calling it empty.
+  if (probe.text.length < 40 && httpStatus < 400) {
+    await page.waitForTimeout(5000);
+    probe = await read();
+  }
   const looksBlocked = BLOCK_RE.test(`${probe.title} ${probe.text.slice(0, 400)}`) && probe.text.length < 1500;
   if (httpStatus >= 400 && (looksBlocked || probe.text.length < 800)) return `The site returned HTTP ${httpStatus} to an automated browser.`;
   if (looksBlocked) return 'The site showed a bot-protection page to an automated browser.';

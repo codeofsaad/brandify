@@ -7,15 +7,32 @@ import ReferenceDrop from './ReferenceDrop.jsx';
 const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', screenshot: 'Screenshot', derived: 'Derived', default: 'Default', edited: 'Edited' };
 export const Badge = ({ kind }) => (kind ? <span className={`badge badge-${kind}`}>{PROV_LABEL[kind] || kind}</span> : null);
 
-function StepHead({ n, title, children }) {
+function StepHead({ n, title, children, extra }) {
   return (
     <div className="step-head">
       <div className="step-n">{n}</div>
       <div>
         <h2>{title}</h2>
         <p>{children}</p>
+        {extra}
       </div>
     </div>
+  );
+}
+
+// A quiet "notes" chip; the details appear on hover, keyboard focus, or click (so it works on touch screens too).
+function NotesHint({ notes }) {
+  const [open, setOpen] = useState(false);
+  if (!notes?.length) return null;
+  return (
+    <span className={`notes-hint ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
+      <button type="button" className="notes-chip" aria-expanded={open} aria-describedby="notes-pop" onClick={() => setOpen((o) => !o)} onBlur={() => setOpen(false)}>
+        <span aria-hidden="true">⚠</span> {notes.length} {notes.length === 1 ? 'note' : 'notes'} to check
+      </button>
+      <span className="notes-pop" id="notes-pop" role="tooltip">
+        <ul>{notes.map((n) => <li key={n}>{n}</li>)}</ul>
+      </span>
+    </span>
   );
 }
 
@@ -395,7 +412,8 @@ function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
           <span>Found</span>
           <div>
             <b>{f.brandName || 'No font detected'}</b>
-            {f.isSubstitute && <em className="warn">Custom brand font, not available on the web</em>}
+            {f.isSystem && <em className="warn">System font, so it can't be bundled</em>}
+            {f.isSubstitute && !f.isSystem && <em className="warn">Custom brand font, not available on the web</em>}
             {!f.isSubstitute && f.brandName && <em className="ok-t">Available on Google Fonts</em>}
           </div>
         </li>
@@ -582,7 +600,7 @@ export function ReviewStep({ m, md, generated, stale, onReset }) {
   const logo = selectedLogo(m);
   return (
     <section className="panel">
-      <StepHead n="6" title="Review and generate">
+      <StepHead n="6" title="Review and generate" extra={<NotesHint notes={m.notes} />}>
         Check the summary, then press <b>Generate Design File</b> below. You can go back to any step and change things, then regenerate.
       </StepHead>
       <div className="summary">
@@ -593,9 +611,6 @@ export function ReviewStep({ m, md, generated, stale, onReset }) {
         <div><span>Density</span><b>{m.shape.density}</b></div>
         <div><span>Logo</span><b>{logo ? `${logo.kind} (${logo.format})` : 'none'}</b></div>
       </div>
-      {m.notes.length > 0 && (
-        <ul className="notes">{m.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-      )}
       <div className="section-t">
         <h3>{generated ? (stale ? 'Design file (out of date, regenerate)' : 'Design file') : 'Design file preview'}</h3>
         <button className="btn btn-ghost" onClick={onReset}>Reset all to detected</button>

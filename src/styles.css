@@ -444,3 +444,13 @@ h1, h2, h3, p { margin: 0; }
 .ctl-hint { min-height: 18px; font-size: 12px; color: var(--t-muted); line-height: 1.4; }
 .pill-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--t-ink); font-size: 12.5px; }
 .pill-toggle input { accent-color: var(--t-blue); width: 15px; height: 15px; margin: 0; }
+
+/* ----- notes chip with hover popover (Review step) ----- */
+.notes-hint { position: relative; display: inline-block; margin-top: 10px; }
+.notes-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid #f0d28a; border-radius: 999px; background: #fff3d6; color: #6b4300; font-size: 12.5px; font-weight: 600; cursor: help; }
+.notes-chip:hover, .notes-hint.open .notes-chip, .notes-chip:focus-visible { background: #ffe9b8; outline: none; }
+.notes-pop { display: none; position: absolute; z-index: 30; left: 0; top: calc(100% + 8px); width: min(600px, 78vw); padding: 14px 18px; border: 1px solid #f0d28a; border-radius: 12px; background: #fff8e6; color: #5c3b00; font-size: 13px; line-height: 1.55; box-shadow: 0 12px 32px rgba(60, 40, 0, 0.18); }
+.notes-pop ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.notes-hint:hover .notes-pop, .notes-hint:focus-within .notes-pop, .notes-hint.open .notes-pop { display: block; }
+/* invisible bridge so the popover stays open while the mouse moves from the chip into it */
+.notes-pop::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }

@@ -158,7 +158,8 @@ function pickTypography(brand, site, monochrome) {
     }
     const weight = role === 'heading' ? clamp(parseInt(headEl?.weight) || 700, 300, 800) : 400;
     const suggestions = matchFonts({ name: brandName, role, weight, uppercase: role === 'heading' && upper });
-    return { family: suggestions[0].family, source: 'derived', brandName, isSubstitute: Boolean(brandName), alternatives: candidates, suggestions };
+    const isSystem = /^(-apple-system|blinkmacsystemfont|system-ui|ui-sans-serif|segoe ui|sf pro|san francisco)/i.test(brandName || '');
+    return { family: suggestions[0].family, source: 'derived', brandName, isSubstitute: Boolean(brandName), isSystem, alternatives: candidates, suggestions };
   }
 
   const heading = resolve('heading', bfTitle, headEl?.family);
@@ -304,7 +305,7 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
   if (!site && !screenshotOnly) {
     notes.push(
       siteError
-        ? `The website could not be analyzed automatically (${siteError.replace(/\.$/, '')}), so corners, shadows, spacing and fonts use Brandfetch data and sensible defaults. Adjust them in the Shape and feel step.`
+        ? `The website could not be analyzed automatically (${String(siteError).split(/\n| at /)[0].replace(/^page\.evaluate:\s*/i, '').slice(0, 140).replace(/\.$/, '')}), so corners, shadows, spacing and fonts use Brandfetch data and sensible defaults. Adjust them in the Shape and feel step.`
         : 'The live website could not be analyzed, so shape, spacing and fonts use defaults.',
     );
   }
@@ -316,7 +317,9 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
   }
   if (monochrome) notes.push('This brand is essentially monochrome; the accent color is used sparingly.');
   for (const k of ['heading', 'body']) {
-    if (typography[k].isSubstitute) notes.push(`"${typography[k].brandName}" is a custom font and not available on the web; substituting ${typography[k].family}.`);
+    const f = typography[k];
+    if (f.isSystem) notes.push(`"${f.brandName}" is a system font, so it can't be bundled; using ${f.family}.`);
+    else if (f.isSubstitute) notes.push(`"${f.brandName}" is a custom font and not available on the web; substituting ${f.family}.`);
   }
 
   return {
