@@ -427,3 +427,7 @@ h1, h2, h3, p { margin: 0; }
 .picked small { color: var(--t-muted); font-size: 12.5px; }
 .picked-hint { margin: 10px 0 0; color: var(--t-muted); font-size: 13px; line-height: 1.45; }
 .picked-hint b { color: var(--t-navy); }
+
+.color-source { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 14px; }
+.color-source .lbl { margin: 0; }
+.color-source small { color: var(--t-muted); font-size: 12px; line-height: 1.4; }

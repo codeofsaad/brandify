@@ -314,7 +314,7 @@ function PaletteStrip({ title, hint, colors, onEdit, sources }) {
   );
 }
 
-export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onAddShots, onRemoveShot, onPick, picking }) {
+export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSetColorSource, onAddShots, onRemoveShot, onPick, picking }) {
   return (
     <section className="panel">
       <StepHead n="2" title="Colors">
@@ -324,6 +324,13 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onAd
       <details className="ref-shortcut" open={shots.length > 0}>
         <summary>{shots.length ? `Reference screenshot${shots.length > 1 ? 's' : ''} (${shots.length})` : 'Have a screenshot of their existing app? Add it to match its colors'}</summary>
         <ReferenceDrop shots={shots} onAdd={onAddShots} onRemove={onRemoveShot} compact />
+        {m.reference && !m.screenshotOnly && m.baseColors && (
+          <div className="color-source">
+            <span className="lbl">Color source</span>
+            <Segmented value={m.colorSource} options={[['screenshot', 'Your screenshot'], ['website', 'Website + Brandfetch']]} onChange={onSetColorSource} />
+            <small>Switching resets the colors to that source. Logo, fonts and shape always come from the website and Brandfetch.</small>
+          </div>
+        )}
         {shots.length > 0 && <p className="dz-note">Use <b>Pick</b> on any color below, then click that color in the screenshot (right panel).</p>}
       </details>
 

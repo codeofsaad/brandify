@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
-import { synthesize, withDetected, derivePalettes, applyReferenceToModel } from './lib/synthesize.js';
+import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors } from './lib/synthesize.js';
 import { analyzeShots, sampleColor } from './lib/screenshot.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
 import { fetchLogoAsset } from './lib/logo.js';
@@ -158,6 +158,11 @@ export default function App() {
     setShots((prev) => prev.filter((x) => x.id !== id));
     setPicking(null);
   };
+  const setColorSource = (src) =>
+    update((n) => {
+      if (src === 'website') useWebsiteColors(n);
+      else if (n.reference) applyReferenceToModel(n, n.reference.analysis);
+    });
   const onSample = (hex) => {
     if (picking) setColor(picking, hex);
     setPicking(null);
@@ -338,7 +343,7 @@ export default function App() {
       <div className={`shell ${step === 0 ? 'solo' : ''}`}>
         <main className="main">
           {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} onShotsOnly={loadFromShots} shots={shots} onAddShots={(l) => setShots((p) => [...p, ...l].slice(0, 4))} onRemoveShot={(id) => setShots((p) => p.filter((x) => x.id !== id))} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
-          {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} shots={shots} onAddShots={addShotsLater} onRemoveShot={removeShotLater} onPick={(k) => setPicking(picking === k ? null : k)} picking={picking} />}
+          {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} shots={shots} onSetColorSource={setColorSource} onAddShots={addShotsLater} onRemoveShot={removeShotLater} onPick={(k) => setPicking(picking === k ? null : k)} picking={picking} />}
           {m && step === 2 && <TypographyStep m={m} setFont={setFont} setTypo={setTypo} />}
           {m && step === 3 && <ShapeStep m={m} setShape={setShape} />}
           {m && step === 4 && <LogoStep m={m} setLogo={setLogo} addLogo={addLogo} />}

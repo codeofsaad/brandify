@@ -284,6 +284,8 @@ function applyReference(colors, prov, a) {
 export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false }) {
   const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site);
   const analysis = reference?.analysis || null;
+  const baseColors = { ...colors }; // what the website and Brandfetch said, kept so the user can switch back
+  const baseProv = { ...prov };
   if (analysis) applyReference(colors, prov, analysis);
   const monochrome = analysis ? !analysis.primary : baseMono;
   // Extra colours that inform the chart palettes: the brand's other listed colours, and what the site's interface uses.
@@ -292,7 +294,7 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     harvest: harvestFromSite(site),
     accentIsInvented: prov.accent === 'derived' || prov.accent === 'default',
     reference: analysis?.series || [],
-    fromReference: Boolean(analysis),
+    fromReference: Boolean(analysis?.primary), // label chart colours "Screenshot" only if it really supplied brand colours
   };
   const typography = pickTypography(brand, site, monochrome);
   const shape = pickShape(site, monochrome);
@@ -340,6 +342,10 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     siteMeasured: Boolean(site),
     screenshotOnly,
     reference: analysis ? { analysis, count: analysis.shots } : null,
+    baseColors,
+    baseProv,
+    baseMonochrome: baseMono,
+    colorSource: analysis ? 'screenshot' : 'website',
     siteUrl: site?.url || null,
     notes,
     detected: null, // set below
@@ -355,8 +361,10 @@ export { readableOn };
 
 // Add a screenshot to a company that is already loaded: its colors take over and the chart palettes are rebuilt.
 export function applyReferenceToModel(n, analysis) {
+  if (!n.baseColors) { n.baseColors = { ...n.colors }; n.baseProv = { ...n.prov }; n.baseMonochrome = n.monochrome; }
   applyReference(n.colors, n.prov, analysis);
-  n.paletteContext = { ...n.paletteContext, reference: analysis.series, fromReference: true, accentIsInvented: !analysis.accent };
+  n.colorSource = 'screenshot';
+  n.paletteContext = { ...n.paletteContext, reference: analysis.series, fromReference: Boolean(analysis.primary), accentIsInvented: !analysis.accent };
   n.palettes = derivePalettes(n.colors, n.paletteContext);
   n.reference = { analysis, count: analysis.shots };
   n.monochrome = !analysis.primary;
@@ -364,4 +372,17 @@ export function applyReferenceToModel(n, analysis) {
     ...n.notes.filter((x) => !x.startsWith('Colors were read from')),
     `Colors were read from ${analysis.shots === 1 ? 'your reference screenshot' : `${analysis.shots} reference screenshots`} (${analysis.theme} design), and they take priority over the website's colors.`,
   ];
+}
+
+
+// Switch the colours back to what the website and Brandfetch said (the screenshot stays attached for reference).
+export function useWebsiteColors(n) {
+  if (!n.baseColors) return;
+  n.colors = { ...n.baseColors };
+  for (const k of Object.keys(n.baseProv)) n.prov[k] = n.baseProv[k];
+  n.paletteContext = { ...n.paletteContext, reference: [], fromReference: false };
+  n.palettes = derivePalettes(n.colors, n.paletteContext);
+  n.monochrome = n.baseMonochrome;
+  n.colorSource = 'website';
+  n.notes = n.notes.filter((x) => !x.startsWith('Colors were read from'));
 }
