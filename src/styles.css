@@ -418,3 +418,12 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 760px) { .start-grid { grid-template-columns: 1fr; gap: 14px; } .start-or { height: 28px; } .start-or::before { top: 50%; bottom: auto; left: 0; right: 0; width: auto; height: 1px; } }
 
 .badge-screenshot { background: #fdebd9; color: #9a4a06; }
+
+/* ----- a suggestion that was chosen but not loaded yet ----- */
+.picked { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px; border: 1px solid #c6e0f7; background: var(--t-blue-tint); border-radius: 12px; }
+.picked img, .picked .ph { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: #fff; flex: none; }
+.picked span { flex: 1; min-width: 0; }
+.picked b { display: block; font-size: 14.5px; color: var(--t-navy); }
+.picked small { color: var(--t-muted); font-size: 12.5px; }
+.picked-hint { margin: 10px 0 0; color: var(--t-muted); font-size: 13px; line-height: 1.45; }
+.picked-hint b { color: var(--t-navy); }

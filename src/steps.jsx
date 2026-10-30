@@ -141,6 +141,7 @@ function LoadingCard({ status, progress, onSkip }) {
 
 export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, status, current, onContinue, progress, onSkip, shots, onAddShots, onRemoveShot }) {
   const [q, setQ] = useState('');
+  const [selected, setSelected] = useState(null); // a suggestion the user clicked: chosen, but not loaded until Continue
   const [customer, setCustomer] = useState('');
   const [results, setResults] = useState([]);
   const [manual, setManual] = useState(false);
@@ -148,7 +149,7 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
 
   useEffect(() => {
     clearTimeout(timer.current);
-    if (q.trim().length < 2) return setResults([]);
+    if (q.trim().length < 2 || (selected && q === selected.name)) return setResults([]);
     timer.current = setTimeout(async () => {
       try {
         const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
@@ -170,9 +171,14 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
     const t = v.trim();
     if (t) onLoad(t);
   };
+  const choose = (r) => {
+    setSelected(r);
+    setQ(r.name);
+    setResults([]);
+  };
   const go = () => {
     if (!canContinue) return;
-    if (hasCompany) submit(results[0]?.domain || q);
+    if (hasCompany) submit(selected?.domain || results[0]?.domain || q);
     else onShotsOnly(customer.trim());
   };
 
@@ -202,15 +208,26 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
             autoFocus
             value={q}
             placeholder="Enter the company name"
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              if (selected && e.target.value !== selected.name) setSelected(null);
+            }}
             onKeyDown={(e) => e.key === 'Enter' && go()}
             disabled={loading}
           />
+          {selected && !loading && (
+            <div className="picked">
+              {selected.icon ? <img src={selected.icon} alt="" /> : <span className="ph" />}
+              <span><b>{selected.name}</b><small>{selected.domain} · selected</small></span>
+              <button className="linkbtn" onClick={() => { setSelected(null); setQ(''); }}>Change</button>
+            </div>
+          )}
+          {selected && !loading && <p className="picked-hint">Add a reference screenshot on the right if you have one, then press <b>{label}</b>.</p>}
           {results.length > 0 && !loading && (
             <ul className="results">
               {results.map((r) => (
                 <li key={r.domain}>
-                  <button onClick={() => submit(r.domain)}>
+                  <button onClick={() => choose(r)}>
                     {r.icon ? <img src={r.icon} alt="" /> : <span className="ph" />}
                     <span><b>{r.name}</b><small>{r.domain}{r.demo ? ' · demo data' : ''}</small></span>
                   </button>
