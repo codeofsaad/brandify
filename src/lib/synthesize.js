@@ -3,7 +3,7 @@
 import {
   parseColor, normalizeHex, hexToHsl, hslHex, mix, ensureContrast, isNeutral, hueDistance, readableOn, contrast,
 } from './color.js';
-import { canonicalGoogleName, firstFamily, isWebAvailable, suggestSubstitute } from './fonts.js';
+import { canonicalGoogleName, firstFamily, isWebAvailable, matchFonts } from './fonts.js';
 import { generatePalettes, hexToOklch, deriveAccent } from './palette.js';
 
 const px = (v) => (v == null ? NaN : parseFloat(v));
@@ -154,8 +154,9 @@ function pickTypography(brand, site, monochrome) {
     if (web) {
       return { family: canonicalGoogleName(web.name), source: web.source, brandName: brandName, isSubstitute: false, alternatives: candidates.filter((c) => c !== web) };
     }
-    const sub = suggestSubstitute(brandName, role, { uppercase: upper });
-    return { family: sub, source: 'derived', brandName, isSubstitute: Boolean(brandName), alternatives: candidates };
+    const weight = role === 'heading' ? clamp(parseInt(headEl?.weight) || 700, 300, 800) : 400;
+    const suggestions = matchFonts({ name: brandName, role, weight, uppercase: role === 'heading' && upper });
+    return { family: suggestions[0].family, source: 'derived', brandName, isSubstitute: Boolean(brandName), alternatives: candidates, suggestions };
   }
 
   const heading = resolve('heading', bfTitle, headEl?.family);

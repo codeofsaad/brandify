@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GOOGLE_FONTS, cssStack, loadFont, suggestSubstitute } from './lib/fonts.js';
+import { cssStack, loadFont, fontGroups, matchFonts } from './lib/fonts.js';
 import { contrast } from './lib/color.js';
 import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
@@ -324,8 +324,9 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes }) {
 
 function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
   useEffect(() => loadFont(f.family), [f.family]);
-  const options = GOOGLE_FONTS.includes(f.family) ? GOOGLE_FONTS : [f.family, ...GOOGLE_FONTS];
-  const sugg = suggestSubstitute(f.brandName, role, { uppercase });
+  const suggestions = f.suggestions || (f.isSubstitute ? matchFonts({ name: f.brandName, role, weight: f.weight, uppercase }) : []);
+  useEffect(() => { suggestions.forEach((x) => loadFont(x.family)); }, [suggestions.map((x) => x.family).join('|')]);
+  const groups = fontGroups();
   return (
     <div className="font-card">
       <div className="font-t"><b>{label}</b><Badge kind={f.source} /></div>
@@ -341,7 +342,10 @@ function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
         <li>
           <span>Using</span>
           <select value={f.family} onChange={(e) => onFamily(e.target.value)}>
-            {options.map((o) => <option key={o}>{o}</option>)}
+            {!groups.some(([, list]) => list.includes(f.family)) && <option>{f.family}</option>}
+            {groups.map(([group, list]) => (
+              <optgroup key={group} label={group}>{list.map((o) => <option key={o}>{o}</option>)}</optgroup>
+            ))}
           </select>
         </li>
         <li>
@@ -351,8 +355,18 @@ function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
           </select>
         </li>
       </ol>
-      {f.isSubstitute && f.family !== sugg && (
-        <button className="chip" onClick={() => onFamily(sugg)}>Suggested: {sugg}</button>
+      {suggestions.length > 0 && (
+        <div className="matches">
+          <span className="lbl">Closest free matches</span>
+          {suggestions.map((x) => (
+            <button key={x.family} className={`match ${x.family === f.family ? 'on' : ''}`} onClick={() => onFamily(x.family)}>
+              <span className="match-sample" style={{ fontFamily: cssStack(x.family), fontWeight: f.weight, textTransform: uppercase ? 'uppercase' : 'none' }}>
+                {role === 'heading' ? 'Revenue grew' : 'Readable body text'}
+              </span>
+              <small>{x.family} · {x.reason}</small>
+            </button>
+          ))}
+        </div>
       )}
       {f.alternatives?.length > 0 && (
         <div className="alts">Also seen: {f.alternatives.map((a) => `${a.name} (${a.source})`).join(', ')}</div>

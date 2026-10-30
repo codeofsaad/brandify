@@ -359,3 +359,11 @@ h1, h2, h3, p { margin: 0; }
 .loading-body { min-width: 0; }
 .slow-hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid #c6e0f7; color: #5c3b00 !important; }
 .slow-hint .linkbtn { font-size: 13px; }
+
+/* ----- closest font matches ----- */
+.matches { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.match { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 12px; border: 1px solid var(--t-border); border-radius: 10px; background: #fff; transition: none; }
+.match:hover { border-color: var(--t-blue); background: var(--t-blue-tint); }
+.match.on { border-color: var(--t-blue); box-shadow: 0 0 0 2px rgba(1, 118, 211, 0.15); }
+.match-sample { font-size: 18px; line-height: 1.2; color: var(--t-ink); }
+.match small { color: var(--t-muted); font-size: 11.5px; }

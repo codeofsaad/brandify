@@ -4,7 +4,7 @@ import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewSte
 import { synthesize, withDetected, derivePalettes } from './lib/synthesize.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
 import { fetchLogoAsset } from './lib/logo.js';
-import { loadFont } from './lib/fonts.js';
+import { loadFont, ensureCatalog } from './lib/fonts.js';
 import { fetchJson, analyzeSite } from './lib/api.js';
 
 const TABLEAU_SYMBOL = 'https://cdn.brandfetch.io/id9sYMA_Im/theme/light/symbol.svg?c=1bxn5168vgovn2t5jgb34j594duYhJreifV';
@@ -37,6 +37,10 @@ export default function App() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [logoAssets, setLogoAssets] = useState({}); // keyed by logo URL: embedded copies of logos already fetched
   const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    ensureCatalog(); // font catalog loads quietly in the background; it is ready long before a pull finishes
+  }, []);
 
   useEffect(() => {
     fetch('/api/status').then((r) => r.json()).then((s) => { setAnalysisEnabled(Boolean(s.analysisEnabled)); setLoadedBuild(s.build ?? null); }).catch(() => {});
@@ -96,6 +100,7 @@ export default function App() {
         const shot = data.brand.screenshot?.url || null;
         siteData = { site: null, siteError: 'You skipped the website analysis', screenshot: shot, screenshotSource: shot ? 'brandfetch' : null };
       }
+      await ensureCatalog();
       setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, ...siteData })));
       setGeneratedMd(null);
       setStep(1);
@@ -124,6 +129,7 @@ export default function App() {
         fonts: [],
         logos: logo ? [{ type: 'logo', theme: 'dark', formats: [{ format: logo.format, src: logo.dataUrl }], uploaded: true, fileName: logo.name }] : [],
       };
+      await ensureCatalog();
       const model = synthesize({ brand, demo: false, ...siteData });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
