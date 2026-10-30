@@ -64,9 +64,9 @@ export async function extractSite(input) {
   log('browser launched');
   // Hard stop: closing the browser makes every pending step reject, so a stuck page can never hang the job.
   const deadline = setTimeout(() => {
-    log('deadline reached (80s); closing browser');
+    log('deadline reached (60s); closing browser');
     browser.close().catch(() => {});
-  }, 80000);
+  }, 60000);
   try {
     const ctx = await browser.newContext({
       viewport: { width: 1440, height: 900 },

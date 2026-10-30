@@ -203,7 +203,7 @@ app.post('/api/brand', async (req, res) => {
 const jobs = new Map(); // id -> { status: 'queued' | 'running' | 'done' | 'error', result?, error?, at }
 let queue = Promise.resolve(); // one browser at a time: Chromium is heavy and dynos are small
 const JOB_TTL_MS = 15 * 60 * 1000;
-const JOB_TIMEOUT_MS = 100 * 1000;
+const JOB_TIMEOUT_MS = 70 * 1000;
 setInterval(() => {
   for (const [id, j] of jobs) if (Date.now() - j.at > JOB_TTL_MS) jobs.delete(id);
 }, 60 * 1000).unref();
@@ -212,6 +212,7 @@ const withTimeout = (promise, ms, message) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms).unref())]);
 
 async function analyzeSite({ input, domain, screenshotUrl }) {
+  if (Number(process.env.BRANDIFY_TEST_DELAY_MS) > 0) await new Promise((r) => setTimeout(r, Number(process.env.BRANDIFY_TEST_DELAY_MS))); // testing only
   let site = null;
   let siteError = null;
   try {
@@ -261,7 +262,10 @@ app.post('/api/site/start', (req, res) => {
 app.get('/api/site/job/:id', (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Unknown or expired job.' });
-  res.json({ status: job.status, result: job.result, error: job.error });
+  // How many analyses are ahead of this one (jobs run one at a time).
+  let ahead = 0;
+  if (job.status === 'queued') for (const j of jobs.values()) if (j !== job && j.at < job.at && (j.status === 'queued' || j.status === 'running')) ahead++;
+  res.json({ status: job.status, ahead, result: job.result, error: job.error });
 });
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));

@@ -22,15 +22,19 @@ export async function fetchJson(url, body) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Starts the website analysis as a background job and polls until it finishes.
+// onProgress({ status, ahead }) is called on every poll; abort the signal to stop waiting (the caller then gets a "skipped" result).
 // Never throws: on failure it returns the same shape with site = null and a reason.
-export async function analyzeSite(params, { timeoutMs = 150000, intervalMs = 2000 } = {}) {
+export async function analyzeSite(params, { timeoutMs = 120000, intervalMs = 1500, signal, onProgress } = {}) {
   const failed = (siteError) => ({ site: null, siteError, screenshot: null, screenshotSource: null });
   try {
     const { jobId } = await fetchJson('/api/site/start', params);
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
+      if (signal?.aborted) return failed('The website analysis was skipped');
       await sleep(intervalMs);
+      if (signal?.aborted) return failed('The website analysis was skipped');
       const job = await fetchJson(`/api/site/job/${jobId}`);
+      onProgress?.({ status: job.status, ahead: job.ahead || 0 });
       if (job.status === 'done') return job.result;
       if (job.status === 'error') return failed(job.error || 'The website analysis failed');
     }

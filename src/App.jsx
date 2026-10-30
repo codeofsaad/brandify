@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
 import { synthesize, withDetected, derivePalettes } from './lib/synthesize.js';
@@ -23,6 +23,8 @@ export default function App() {
   const [m, setM] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingFor, setLoadingFor] = useState('');
+  const [progress, setProgress] = useState(null); // { phase: 'brand' | 'site', startedAt, status, ahead }
+  const skipRef = useRef(null);
   const [error, setError] = useState('');
   const [generatedMd, setGeneratedMd] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -77,11 +79,23 @@ export default function App() {
     setLoading(true);
     setLoadingFor(input);
     setError('');
+    const ctrl = new AbortController();
+    skipRef.current = () => ctrl.abort();
+    setProgress({ phase: 'brand', startedAt: Date.now() });
     try {
       const domain = input.includes('.') ? input : guessDomain(input);
-      // 1) brand identity (fast)  2) website analysis (slow, runs as a background job)
+      // 1) brand identity (fast)  2) website analysis (slow, runs as a background job you can skip)
       const data = await fetchJson('/api/brand', { domain });
-      const siteData = await analyzeSite({ domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url });
+      setProgress({ phase: 'site', startedAt: Date.now(), status: 'queued', ahead: 0 });
+      let siteData = await analyzeSite(
+        { domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url },
+        { signal: ctrl.signal, onProgress: (p) => setProgress((prev) => ({ ...prev, ...p })) },
+      );
+      if (ctrl.signal.aborted) {
+        // Skipped: continue with Brandfetch data; its saved screenshot can be shown straight from the CDN.
+        const shot = data.brand.screenshot?.url || null;
+        siteData = { site: null, siteError: 'You skipped the website analysis', screenshot: shot, screenshotSource: shot ? 'brandfetch' : null };
+      }
       setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, ...siteData })));
       setGeneratedMd(null);
       setStep(1);
@@ -89,6 +103,8 @@ export default function App() {
       setError(e.message);
     } finally {
       setLoading(false);
+      setProgress(null);
+      skipRef.current = null;
     }
   }
 
@@ -262,7 +278,7 @@ export default function App() {
 
       <div className={`shell ${step === 0 ? 'solo' : ''}`}>
         <main className="main">
-          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} current={m} onContinue={() => setStep(1)} />}
+          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
           {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} />}
           {m && step === 2 && <TypographyStep m={m} setFont={setFont} setTypo={setTypo} />}
           {m && step === 3 && <ShapeStep m={m} setShape={setShape} analysisEnabled={analysisEnabled} analyzing={analyzing} error={analyzeError} onAnalyze={analyze} setCharacter={setCharacter} clearCharacter={clearCharacter} />}

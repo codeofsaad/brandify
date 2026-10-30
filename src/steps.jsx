@@ -105,7 +105,40 @@ function ManualForm({ onManual, loading }) {
   );
 }
 
-export function CompanyStep({ onLoad, onManual, loading, error, status, current, onContinue }) {
+// Shows which stage the pull is in, how long it has taken, and (when the website is slow) lets the user skip it.
+function LoadingCard({ status, progress, onSkip }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+  const siteSecs = progress?.phase === 'site' ? Math.floor((now - progress.startedAt) / 1000) : 0;
+  let line = 'Fetching brand data…';
+  if (progress?.phase === 'site') {
+    line =
+      progress.status === 'queued' && progress.ahead > 0
+        ? `Waiting for ${progress.ahead} other website ${progress.ahead === 1 ? 'analysis' : 'analyses'} to finish…`
+        : 'Opening the website and measuring its buttons, cards and type…';
+  }
+  return (
+    <div className="loading-card">
+      <div className="spinner" />
+      <div className="loading-body">
+        <b>Studying {status}…</b>
+        <p>{line}{progress?.phase === 'site' ? ` ${siteSecs}s` : ''}</p>
+        {progress?.phase === 'site' && siteSecs >= 20 && (
+          <p className="slow-hint">
+            This site is taking longer than usual.{' '}
+            <button className="linkbtn" onClick={onSkip}>Skip the website analysis and continue</button>
+            {' '}(you'll still get the logo, colors and fonts from Brandfetch).
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CompanyStep({ onLoad, onManual, loading, error, status, current, onContinue, progress, onSkip }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [manual, setManual] = useState(false);
@@ -174,15 +207,7 @@ export function CompanyStep({ onLoad, onManual, loading, error, status, current,
         </ul>
       )}
 
-      {loading && (
-        <div className="loading-card">
-          <div className="spinner" />
-          <div>
-            <b>Studying {status}…</b>
-            <p>Fetching brand data, then opening the website to measure real buttons, cards and type. This takes 10–25 seconds.</p>
-          </div>
-        </div>
-      )}
+      {loading && <LoadingCard status={status} progress={progress} onSkip={onSkip} />}
 
       {error && (
         <div className="alert">
