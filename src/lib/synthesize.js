@@ -4,19 +4,22 @@ import {
   parseColor, normalizeHex, hexToHsl, hslHex, mix, ensureContrast, isNeutral, hueDistance, readableOn, contrast,
 } from './color.js';
 import { canonicalGoogleName, firstFamily, isWebAvailable, matchFonts } from './fonts.js';
-import { generatePalettes, hexToOklch, deriveAccent } from './palette.js';
+import { generatePalettes, hexToOklch, deriveAccent, deltaE } from './palette.js';
 
 const px = (v) => (v == null ? NaN : parseFloat(v));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // ---------- colors ----------
 
+// Colours a browser paints on plain, unstyled links. They show up on many pages but belong to no brand.
+const BROWSER_DEFAULTS = new Set(['#0000EE', '#551A8B', '#EE0000', '#0000FF']);
+
 function chromaticStats(site) {
   const entries = [];
   const add = (list, weight = 1) =>
     (list || []).forEach(({ value, count }) => {
       const hex = normalizeHex(value);
-      if (hex) entries.push({ hex, count: count * weight });
+      if (hex && !BROWSER_DEFAULTS.has(hex)) entries.push({ hex, count: count * weight });
     });
   add(site?.colors?.text);
   add(site?.colors?.links, 3);
@@ -39,7 +42,7 @@ function harvestFromSite(site) {
   const merged = new Map();
   for (const { value, count } of site?.colors?.all || []) {
     const hex = normalizeHex(value);
-    if (!hex) continue;
+    if (!hex || BROWSER_DEFAULTS.has(hex)) continue;
     const { L, C } = hexToOklch(hex);
     if (C < 0.045 || L < 0.2 || L > 0.92) continue; // greys, near-black and near-white are not accents
     merged.set(hex, (merged.get(hex) || 0) + count);
@@ -60,7 +63,18 @@ export function derivePalettes(colors, ctx = {}) {
   });
 }
 
-function pickColors(brand, site) {
+// True when Brandfetch lists at least one real (not grey) brand/primary/accent colour.
+export function brandfetchHasColor(brand) {
+  return (brand.colors || []).some((c) => {
+    if (!['brand', 'primary', 'accent'].includes(c.type)) return false;
+    const hex = normalizeHex(c.hex);
+    if (!hex) return false;
+    const [, sat, light] = hexToHsl(hex);
+    return sat >= 0.12 && light > 0.15 && light < 0.9;
+  });
+}
+
+function pickColors(brand, site, logoColors = []) {
   const bf = (type) => normalizeHex((brand.colors || []).find((c) => c.type === type)?.hex);
   const bfAll = (brand.colors || []).map((c) => ({ hex: normalizeHex(c.hex), type: c.type })).filter((c) => c.hex);
   const bfBrand = bf('brand') || bf('primary');
@@ -78,7 +92,10 @@ function pickColors(brand, site) {
   const accentUse = realColor(bfAccent);
 
   const stats = site ? chromaticStats(site) : { ranked: [], share: 0 };
-  const monochrome = site ? stats.share < 0.08 : !(brandUse || accentUse);
+  // Brandfetch's own brand colours come first. A brand with a real brand/primary colour is never "monochrome";
+  // otherwise the website decides whether the design is essentially black and white.
+  const logoUse = (logoColors || []).filter((c) => realColor(c));
+  const monochrome = brandUse ? false : !brandUse && !accentUse && logoUse.length ? false : site ? stats.share < 0.08 : !(brandUse || accentUse);
   const prov = {};
   const alternatives = { primary: [], accent: [] };
 
@@ -86,21 +103,23 @@ function pickColors(brand, site) {
   if (monochrome) {
     primary = bfDark || '#111111';
     prov.primary = bfDark ? 'brandfetch' : 'default';
-    accent = accentUse || brandUse || stats.ranked[0]?.hex || null;
-    prov.accent = accent ? (accentUse || brandUse ? 'brandfetch' : 'measured') : 'default';
+    accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || null;
+    prov.accent = accent ? (accentUse || brandUse ? 'brandfetch' : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {
     const measured = stats.ranked[0]?.hex;
-    primary = measured || brandUse || accentUse;
-    prov.primary = measured ? 'measured' : 'brandfetch';
-    if (measured && bfBrand && bfBrand !== measured) alternatives.primary.push({ hex: bfBrand, source: 'brandfetch' });
-    const hueOf = (c) => hexToHsl(c)[0];
-    const candidates = [bfAccent, bfBrand, ...stats.ranked.slice(1).map((r) => r.hex)].filter(Boolean);
+    const bfOrder = [...new Set([brandUse, accentUse, ...bfAll.filter((c) => ['brand', 'primary'].includes(c.type) && realColor(c.hex)).map((c) => c.hex)].filter(Boolean))];
+    // Order of trust: Brandfetch, then the logo itself, then whatever the website happens to use.
+    const ordered = [...bfOrder, ...logoUse.filter((c) => !bfOrder.includes(c))];
+    const sourceOf = (c) => (bfOrder.includes(c) ? 'brandfetch' : logoUse.includes(c) ? 'logo' : 'measured');
+    primary = ordered[0] || measured;
+    prov.primary = ordered[0] ? sourceOf(ordered[0]) : 'measured';
+    if (ordered[0] && measured && deltaE(ordered[0], measured) > 0.06) alternatives.primary.push({ hex: measured, source: 'measured' });
     const usable = (c) => {
-      const [h, s, l] = hexToHsl(c);
-      return hueDistance(h, hueOf(primary)) > 25 && s > 0.3 && l > 0.22 && l < 0.85;
+      const [h, sat, l] = hexToHsl(c);
+      return hueDistance(h, hexToHsl(primary)[0]) > 25 && sat > 0.3 && l > 0.22 && l < 0.85;
     };
-    accent = candidates.find(usable) || null;
-    prov.accent = accent ? (accent === bfAccent || accent === bfBrand ? 'brandfetch' : 'measured') : 'default';
+    accent = [...ordered.slice(1), ...stats.ranked.map((r) => r.hex)].find(usable) || null;
+    prov.accent = accent ? sourceOf(accent) : 'default';
   }
   if (!primary) {
     primary = '#0176D3';
@@ -282,8 +301,8 @@ function applyReference(colors, prov, a) {
   colors.border = mix(a.text, a.surface, a.theme === 'dark' ? 0.78 : 0.86); prov.border = 'derived';
 }
 
-export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false }) {
-  const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site);
+export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false, logoColors = [] }) {
+  const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site, logoColors);
   const analysis = reference?.analysis || null;
   const baseColors = { ...colors }; // what the website and Brandfetch said, kept so the user can switch back
   const baseProv = { ...prov };

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
-import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors } from './lib/synthesize.js';
+import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors, brandfetchHasColor, collectLogos } from './lib/synthesize.js';
+import { colorsFromLogos } from './lib/logoColors.js';
 import { analyzeShots, sampleColor } from './lib/screenshot.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
 import { fetchLogoAsset } from './lib/logo.js';
@@ -109,7 +110,9 @@ export default function App() {
       }
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
-      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, reference, ...siteData })));
+      // Brandfetch has no real brand colour? Read the logo before falling back to the website.
+      const logoColors = brandfetchHasColor(data.brand) ? [] : await colorsFromLogos(collectLogos(data.brand));
+      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, reference, logoColors, ...siteData })));
       setGeneratedMd(null);
       setStep(1);
     } catch (e) {
@@ -186,7 +189,8 @@ export default function App() {
       };
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
-      const model = synthesize({ brand, demo: false, reference, ...siteData });
+      const logoColors = !primary && logo ? await colorsFromLogos(collectLogos(brand)) : [];
+      const model = synthesize({ brand, demo: false, reference, logoColors, ...siteData });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
       setM(withDetected(model));

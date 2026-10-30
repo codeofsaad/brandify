@@ -454,3 +454,5 @@ h1, h2, h3, p { margin: 0; }
 .notes-hint:hover .notes-pop, .notes-hint:focus-within .notes-pop, .notes-hint.open .notes-pop { display: block; }
 /* invisible bridge so the popover stays open while the mouse moves from the chip into it */
 .notes-pop::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+
+.badge-logo { background: #e8f0fe; color: #1a4fa3; }

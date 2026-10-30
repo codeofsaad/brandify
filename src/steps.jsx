@@ -4,7 +4,7 @@ import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
 import ReferenceDrop from './ReferenceDrop.jsx';
 
-const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', screenshot: 'Screenshot', derived: 'Derived', default: 'Default', edited: 'Edited' };
+const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', screenshot: 'Screenshot', logo: 'From logo', derived: 'Derived', default: 'Default', edited: 'Edited' };
 export const Badge = ({ kind }) => (kind ? <span className={`badge badge-${kind}`}>{PROV_LABEL[kind] || kind}</span> : null);
 
 function StepHead({ n, title, children, extra }) {
@@ -375,13 +375,13 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
 
       {m.alternatives.primary.length > 0 && (
         <div className="alt">
-          Brandfetch lists a different primary:{' '}
+          The website uses a different primary:{' '}
           {m.alternatives.primary.map((a) => (
             <button key={a.hex} className="chip" onClick={() => setColor('primary', a.hex)}>
               <i style={{ background: a.hex }} /> {a.hex}
             </button>
           ))}
-          <small>We prefer the color actually used on the live site.</small>
+          <small>Brandfetch&apos;s brand color is used by default.</small>
         </div>
       )}
 

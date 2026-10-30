@@ -76,11 +76,33 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// Brandfetch charges a credit per brand lookup, so a successful answer is kept for a week and repeat pulls are free.
+const BRAND_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const BRAND_CACHE_MAX = 300;
+const brandCache = new Map(); // domain -> { brand, at }
+
+async function brandfetchError(r, domain) {
+  const body = await r.json().catch(() => ({}));
+  if (body.error === 'no_api_credits') {
+    return Object.assign(new Error('Brandfetch has no API credits left, so brand data cannot be pulled for new companies right now. Ask the Brandify owner to top up the Brandfetch account. Companies pulled recently still work.'), { status: 503 });
+  }
+  if (r.status === 404) return Object.assign(new Error(`Brandfetch has no brand data for ${domain}. Check the spelling, or upload a screenshot or logo instead.`), { status: 404 });
+  if (r.status === 429) return Object.assign(new Error('Brandfetch is rate limiting requests. Wait a minute and try again.'), { status: 429 });
+  return Object.assign(new Error(`Brandfetch returned ${r.status} for ${domain}`), { status: r.status });
+}
+
 async function fetchBrand(domain) {
+  const hit = brandCache.get(domain);
+  if (hit && Date.now() - hit.at < BRAND_TTL_MS) return { brand: hit.brand, demo: false };
   if (API_KEY) {
     const r = await fetch(`https://api.brandfetch.io/v2/brands/${domain}`, { headers: { Authorization: `Bearer ${API_KEY}` } });
-    if (r.ok) return { brand: await r.json(), demo: false };
-    if (!fixtures[domain]) throw Object.assign(new Error(`Brandfetch returned ${r.status} for ${domain}`), { status: r.status });
+    if (r.ok) {
+      const brand = await r.json();
+      if (brandCache.size >= BRAND_CACHE_MAX) brandCache.delete(brandCache.keys().next().value);
+      brandCache.set(domain, { brand, at: Date.now() });
+      return { brand, demo: false };
+    }
+    if (!fixtures[domain]) throw await brandfetchError(r, domain);
   }
   if (fixtures[domain]) return { brand: fixtures[domain], demo: true };
   throw Object.assign(new Error('No Brandfetch API key is set and no demo data exists for this company. Add BRANDFETCH_API_KEY to .env.'), { status: 401 });
