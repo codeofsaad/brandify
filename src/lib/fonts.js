@@ -37,16 +37,20 @@ export function ensureCatalog() {
 
 const CAT_LABEL = { s: 'Sans serif', r: 'Serif', k: 'Slab serif', m: 'Monospace', d: 'Display' };
 
-// All usable families grouped for the picker.
-export function fontGroups() {
-  if (!CATALOG) return [['Popular', GOOGLE_FONTS]];
-  const groups = new Map();
-  for (const f of [...CATALOG].sort((a, b) => a.family.localeCompare(b.family))) {
-    const label = CAT_LABEL[f.cat];
-    if (!groups.has(label)) groups.set(label, []);
-    groups.get(label).push(f.family);
-  }
-  return ['Sans serif', 'Serif', 'Slab serif', 'Monospace', 'Display'].filter((l) => groups.has(l)).map((l) => [l, groups.get(l)]);
+// The dropdown shows only familiar fonts so it is easy to choose from. Matching still searches the whole catalog, and
+// anything it suggests (or the brand already uses) is pinned at the top of the list.
+const COMMON = [
+  ['Sans serif', ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Source Sans 3', 'Work Sans', 'DM Sans', 'Nunito Sans', 'IBM Plex Sans', 'Libre Franklin', 'Barlow', 'Jost']],
+  ['Condensed', ['Roboto Condensed', 'Barlow Condensed', 'Oswald', 'Archivo Narrow']],
+  ['Serif', ['Source Serif 4', 'Merriweather', 'Playfair Display', 'Lora', 'EB Garamond']],
+  ['Monospace', ['IBM Plex Mono']],
+];
+
+// @param pinned family names to show first (the current font and its suggestions)
+export function fontGroups(pinned = []) {
+  const common = new Set(COMMON.flatMap(([, list]) => list));
+  const extras = [...new Set(pinned.filter(Boolean))].filter((f) => !common.has(f));
+  return [...(extras.length ? [['Suggested for this brand', extras]] : []), ...COMMON];
 }
 
 export function canonicalGoogleName(family) {

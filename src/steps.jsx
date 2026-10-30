@@ -326,7 +326,8 @@ function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
   useEffect(() => loadFont(f.family), [f.family]);
   const suggestions = f.suggestions || (f.isSubstitute ? matchFonts({ name: f.brandName, role, weight: f.weight, uppercase }) : []);
   useEffect(() => { suggestions.forEach((x) => loadFont(x.family)); }, [suggestions.map((x) => x.family).join('|')]);
-  const groups = fontGroups();
+  // Short list of familiar fonts; the current font and the closest matches are pinned on top.
+  const groups = fontGroups([f.family, ...suggestions.map((x) => x.family)]);
   return (
     <div className="font-card">
       <div className="font-t"><b>{label}</b><Badge kind={f.source} /></div>
@@ -342,7 +343,6 @@ function FontCard({ role, label, f, uppercase, onFamily, onWeight }) {
         <li>
           <span>Using</span>
           <select value={f.family} onChange={(e) => onFamily(e.target.value)}>
-            {!groups.some(([, list]) => list.includes(f.family)) && <option>{f.family}</option>}
             {groups.map(([group, list]) => (
               <optgroup key={group} label={group}>{list.map((o) => <option key={o}>{o}</option>)}</optgroup>
             ))}
