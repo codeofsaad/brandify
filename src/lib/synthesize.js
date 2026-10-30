@@ -176,6 +176,17 @@ function median(arr) {
   return a.length ? a[Math.floor(a.length / 2)] : NaN;
 }
 
+// Button corner radius from the prominent (filled or outlined) buttons. 999 means fully rounded (pill).
+function buttonRadiusFromSamples(samples) {
+  if (!samples?.length) return null;
+  const prominent = samples.filter((b) => b.prom);
+  const pool = prominent.length >= 2 ? prominent : samples.filter((b) => b.w >= 40 && b.h >= 24);
+  if (!pool.length) return null;
+  if (pool.filter((b) => b.pill).length / pool.length >= 0.5) return 999;
+  const radii = pool.filter((b) => !b.pill).map((b) => b.r).sort((a, b) => a - b);
+  return radii[Math.floor(radii.length / 2)];
+}
+
 function pickShape(site, monochrome) {
   const prov = {};
   const hasSite = Boolean(site);
@@ -190,9 +201,9 @@ function pickShape(site, monochrome) {
     shadow = alpha > 0.13 ? 'medium' : 'soft';
   }
 
-  const cardRadii = (site?.cards?.radius || []).map((r) => px(r.value));
+  const cardRadii = (site?.cards?.radius || []).filter((r) => !String(r.value).endsWith('%')).map((r) => px(r.value));
   let cardRadius = hasShadow ? cardRadii.find((r) => r > 0) ?? topPx(site?.cards?.radius) : topPx(site?.cards?.radius);
-  let buttonRadius = topPx(site?.buttons?.radius);
+  let buttonRadius = buttonRadiusFromSamples(site?.buttons?.samples) ?? topPx(site?.buttons?.radius);
   if (!Number.isFinite(cardRadius)) cardRadius = hasSite ? 0 : 6;
   if (!Number.isFinite(buttonRadius)) buttonRadius = cardRadius;
   cardRadius = clamp(Math.round(cardRadius), 0, 24);
@@ -303,6 +314,7 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     monochrome,
     screenshot: site?.screenshot || screenshot || null,
     screenshotSource: site?.screenshot ? 'live' : screenshotSource,
+    siteMeasured: Boolean(site),
     siteUrl: site?.url || null,
     character: null, // optional, filled by screenshot analysis
     notes,

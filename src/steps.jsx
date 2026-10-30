@@ -453,9 +453,24 @@ export function ShapeStep({ m, setShape, ...characterProps }) {
       <StepHead n="4" title="Shape and feel">
         Measured from the company’s own buttons, cards and spacing. This is what makes the app feel like them, not just look like them.
       </StepHead>
+      {m.siteMeasured === false && (
+        <div className="soft-warn">
+          <b>We couldn't measure this website,</b> so the values below are defaults, not what the company actually uses. Check the live site and adjust the corners, elevation and density to match.
+        </div>
+      )}
       <div className="feel-grid">
         <Slider label="Card corner radius" value={s.cardRadius} min={0} max={24} onChange={(v) => setShape({ cardRadius: v })} />
-        <Slider label="Button corner radius" value={Math.min(s.buttonRadius, 24)} min={0} max={24} onChange={(v) => setShape({ buttonRadius: v })} />
+        <div>
+          <span className="lbl">Button corners <Badge kind={s.prov.radius} /></span>
+          <Segmented
+            value={s.buttonRadius >= 999 ? 'pill' : s.buttonRadius === 0 ? 'square' : 'rounded'}
+            options={[['square', 'Square'], ['rounded', 'Rounded'], ['pill', 'Pill']]}
+            onChange={(v) => setShape({ buttonRadius: v === 'pill' ? 999 : v === 'square' ? 0 : s.buttonRadius > 0 && s.buttonRadius < 999 ? s.buttonRadius : 8 })}
+          />
+          {s.buttonRadius > 0 && s.buttonRadius < 999 && (
+            <div style={{ marginTop: 10 }}><Slider label="Corner size" value={Math.min(s.buttonRadius, 24)} min={1} max={24} onChange={(v) => setShape({ buttonRadius: v })} /></div>
+          )}
+        </div>
         <Slider label="Border width" value={s.borderWidth} min={0} max={3} onChange={(v) => setShape({ borderWidth: v })} />
         <Slider label="Bar corner radius" value={s.barRadius} min={0} max={12} onChange={(v) => setShape({ barRadius: v })} />
         <div>

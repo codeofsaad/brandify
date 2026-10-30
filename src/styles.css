@@ -377,3 +377,5 @@ h1, h2, h3, p { margin: 0; }
 .co-chip b { color: var(--t-navy); font-size: 15px; }
 .co-chip small { color: var(--t-muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 760px) { .co-strip { padding: 0 16px; } .co-label { display: none; } }
+
+.soft-warn { margin: 0 0 22px; padding: 12px 16px; border-radius: 12px; background: #fff3d6; border: 1px solid #f0d28a; color: #5c3b00; font-size: 14px; line-height: 1.5; }

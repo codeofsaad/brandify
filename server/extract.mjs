@@ -147,7 +147,7 @@ async function detectBlock(page, httpStatus) {
 }
 
 // Runs inside the page.
-function sampleStyles() {
+export function sampleStyles() {
   const px = (v) => (v ? parseFloat(v) : 0);
   const visible = (el) => {
     const r = el.getBoundingClientRect();
@@ -159,6 +159,7 @@ function sampleStyles() {
     for (const v of arr) if (v != null && v !== '') m.set(v, (m.get(v) || 0) + 1);
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([value, count]) => ({ value, count }));
   };
+  const all = [...document.querySelectorAll('body *')].filter(visible).slice(0, 4000);
   // Every colour the interface itself uses (text, fills, borders, icon fills/strokes), not photos.
   const usedColors = [];
   for (const el of all) {
@@ -167,7 +168,6 @@ function sampleStyles() {
       if (c && c !== 'none' && c !== 'rgba(0, 0, 0, 0)') usedColors.push(c);
     }
   }
-  const all = [...document.querySelectorAll('body *')].filter(visible).slice(0, 4000);
 
   const buttons = all.filter(
     (el) =>
@@ -185,6 +185,26 @@ function sampleStyles() {
       textTransform: cs.textTransform,
       fontWeight: cs.fontWeight,
       letterSpacing: cs.letterSpacing,
+    };
+  });
+
+  // Per-button facts, so the shape can come from the buttons people actually see (filled or outlined CTAs),
+  // not from the many invisible text links that also match the selector.
+  const btnSamples = buttons.slice(0, 80).map((el) => {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const raw = cs.borderTopLeftRadius;
+    const rpx = raw.endsWith('%') ? (parseFloat(raw) / 100) * Math.min(r.width, r.height) : parseFloat(raw) || 0;
+    const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/);
+    const parts = m ? m[1].split(',').map(parseFloat) : [];
+    const alpha = parts.length > 3 ? parts[3] : m ? 1 : 0;
+    const outlined = (parseFloat(cs.borderTopWidth) || 0) >= 1 && cs.borderTopStyle !== 'none';
+    return {
+      r: Math.round(rpx),
+      h: Math.round(r.height),
+      w: Math.round(r.width),
+      pill: r.height > 0 && rpx >= r.height / 2 - 1,
+      prom: (alpha > 0.5 || outlined) && r.width >= 56 && r.height >= 26 && r.height <= 100,
     };
   });
 
@@ -228,6 +248,7 @@ function sampleStyles() {
       textTransform: tally(btn.map((b) => b.textTransform)),
       fontWeight: tally(btn.map((b) => b.fontWeight)),
       letterSpacing: tally(btn.map((b) => b.letterSpacing)),
+      samples: btnSamples,
     },
     cards: { count: cards.length, radius: tally(card.map((c) => c.radius)), shadow: tally(card.map((c) => c.shadow)), border: tally(card.map((c) => c.border)), bg: tally(card.map((c) => c.bg)) },
     typography,
