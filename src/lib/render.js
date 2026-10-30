@@ -82,7 +82,6 @@ export function renderDesignMd(m, { logoAsset = null } = {}) {
   const s = m.shape;
   const d = DENSITY[s.density];
   const logo = selectedLogo(m);
-  const ch = m.character;
   const roleRows = [
     ['Primary', c.primary, 'primary buttons, selected state, key marks, links'],
     ['Accent', c.accent, 'highlights, secondary series, callouts'],
@@ -116,25 +115,7 @@ export function renderDesignMd(m, { logoAsset = null } = {}) {
     shape: { cardRadius: s.cardRadius, buttonRadius: s.buttonRadius, shadow: SHADOWS[s.shadow], borderWidth: effectiveBorder(s), density: s.density },
     chart: { gridlines: s.gridlines, barRadius: s.barRadius, lineWidth: s.lineWidth },
     logo: logo ? { kind: logo.kind, embedded: Boolean(logoAsset && !logoAsset.failed), source: logoRef(logo) } : null,
-    ...(ch ? { character: ch } : {}),
   };
-
-  const characterMd = ch
-    ? `## Visual character
-
-*From an AI review of the company's website screenshot; edited by you where noted.*
-
-- **Mood:** ${ch.mood}
-- **Imagery:** ${ch.imagery}
-- **Decorative devices:** ${ch.decoration}
-- **Layout rhythm:** ${ch.rhythm}
-
-### Dashboard rules from this character
-
-${ch.rules.filter((r) => r.trim()).map((r) => `- ${r.trim()}`).join('\n')}
-
-`
-    : '';
 
   const cssBlock = Object.entries(cssVars(m)).map(([k, v]) => `  ${k}: ${v};`).join('\n');
   const dos = [
@@ -221,7 +202,7 @@ Use categorical for unordered categories, sequential for magnitude, and divergin
 - **Keep text and marks at fixed sizes** whatever the chart width: axis and label text 11–12px, data-point markers 3–4px radius, and the line weight given above.
 - **Fonts:** use the Google Fonts named above, with the generic family as a fallback if they cannot load.
 
-${characterMd}## Do
+## Do
 
 ${dos.map((x) => `- ${x}`).join('\n')}
 

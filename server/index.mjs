@@ -30,7 +30,7 @@ if (PASSWORD) app.use(requirePassword(PASSWORD));
 app.use(express.json({ limit: '100kb' }));
 app.use(['/api/search', '/api/logo'], rateLimit({ windowMs: 60 * 1000, max: 60 }));
 // Only the expensive POSTs are limited; job polling (GET /api/site/job/:id) must not count.
-app.use(['/api/brand', '/api/site/start', '/api/analyze'], rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }));
+app.use(['/api/brand', '/api/site/start'], rateLimit({ windowMs: 15 * 60 * 1000, max: 40 }));
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 // Screenshots are overwritten on every pull under the same URL, so the browser must never cache them.
 app.use('/out', express.static(fileURLToPath(new URL('../out/', import.meta.url)), { setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
@@ -43,8 +43,6 @@ const cleanDomain = (v) =>
     .replace(/^www\./, '')
     .split(/[/?#]/)[0];
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-const ANALYSIS_MODEL = process.env.BRANDIFY_ANALYSIS_MODEL || 'claude-sonnet-5-5';
 
 // Identifies the deployed web app so an already-open browser tab can tell it is out of date (set once dist is read).
 let BUILD_ID = 'dev';
@@ -54,64 +52,8 @@ app.get('/api/status', (_req, res) => {
     build: BUILD_ID,
     brandfetchKey: Boolean(API_KEY),
     searchEnabled: Boolean(CLIENT_ID),
-    analysisEnabled: Boolean(ANTHROPIC_KEY),
     demoBrands: Object.keys(fixtures),
   });
-});
-
-const ANALYSIS_PROMPT = `You are a brand designer reviewing a screenshot of a company's homepage. Describe its visual character so that someone building a data dashboard for this company can make it feel native to the brand.
-
-Reply with ONLY a JSON object, no prose, with these string fields:
-- "mood": 4-12 words on overall mood and tone
-- "imagery": one sentence on imagery style (photography, illustration, abstract, none) and how heavily it is used
-- "decoration": one sentence on gradients, patterns, rules, shapes or other decorative devices, and where they appear ("none" if none)
-- "rhythm": one sentence on layout density, whitespace and alignment
-and an array field:
-- "rules": 3-5 short imperative rules for a data dashboard (e.g. "Use a thin gradient rule above section titles, never as a chart fill"). Rules must be concrete and about charts, KPI tiles, tables, headers or color use.
-
-Base everything on what is visible. Do not invent facts about the company.`;
-
-// Optional: Claude looks at the site screenshot and describes the visual character.
-app.post('/api/analyze', async (req, res) => {
-  if (!ANTHROPIC_KEY) {
-    return res.status(501).json({ error: 'Screenshot analysis is off. Add ANTHROPIC_API_KEY to .env and restart.' });
-  }
-  const domain = cleanDomain(req.body?.domain);
-  const file = fileURLToPath(new URL(`../out/${domain}/home.png`, import.meta.url));
-  if (!domain || !DOMAIN_RE.test(domain) || !existsSync(file)) return res.status(404).json({ error: 'No website screenshot is available for this company.' });
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: ANALYSIS_MODEL,
-        max_tokens: 800,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: readFileSync(file).toString('base64') } },
-              { type: 'text', text: ANALYSIS_PROMPT },
-            ],
-          },
-        ],
-      }),
-    });
-    const body = await r.json();
-    if (!r.ok) return res.status(502).json({ error: body?.error?.message || `Anthropic API returned ${r.status}` });
-    const text = body.content?.find((b) => b.type === 'text')?.text || '';
-    const json = text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    const parsed = JSON.parse(json);
-    res.json({
-      mood: String(parsed.mood || ''),
-      imagery: String(parsed.imagery || ''),
-      decoration: String(parsed.decoration || ''),
-      rhythm: String(parsed.rhythm || ''),
-      rules: Array.isArray(parsed.rules) ? parsed.rules.map(String).slice(0, 6) : [],
-    });
-  } catch (e) {
-    res.status(502).json({ error: `Analysis failed: ${e.message}` });
-  }
 });
 
 // Company name -> candidate brands. Uses Brandfetch Brand Search when a client id is set.

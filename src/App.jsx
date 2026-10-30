@@ -28,11 +28,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [generatedMd, setGeneratedMd] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [analysisEnabled, setAnalysisEnabled] = useState(false);
   const [loadedBuild, setLoadedBuild] = useState(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState('');
   const [resetKey, setResetKey] = useState(0);
   const [confirmReset, setConfirmReset] = useState(false);
   const [logoAssets, setLogoAssets] = useState({}); // keyed by logo URL: embedded copies of logos already fetched
@@ -43,7 +40,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/status').then((r) => r.json()).then((s) => { setAnalysisEnabled(Boolean(s.analysisEnabled)); setLoadedBuild(s.build ?? null); }).catch(() => {});
+    fetch('/api/status').then((r) => r.json()).then((s) => { setLoadedBuild(s.build ?? null); }).catch(() => {});
   }, []);
 
   // A tab left open across a deploy keeps running old code (and would generate an out-of-date design file).
@@ -183,20 +180,6 @@ export default function App() {
       if ('cardRadius' in p) n.shape.prov.radius = 'edited';
     });
   const setLogo = (id) => update((n) => { n.logoId = id; });
-  const setCharacter = (p) => update((n) => { Object.assign(n.character, p); });
-  const clearCharacter = () => { setAnalyzeError(''); update((n) => { n.character = null; }); };
-  async function analyze() {
-    setAnalyzing(true);
-    setAnalyzeError('');
-    try {
-      const data = await fetchJson('/api/analyze', { domain: m.company.domain });
-      update((n) => { n.character = data; });
-    } catch (e) {
-      setAnalyzeError(e.message);
-    } finally {
-      setAnalyzing(false);
-    }
-  }
   const reset = () => setM((prev) => ({ ...prev.detected, detected: prev.detected }));
 
   const startOver = () => {
@@ -205,7 +188,6 @@ export default function App() {
     setStep(0);
     setGeneratedMd(null);
     setError('');
-    setAnalyzeError('');
     setLoading(false);
     setResetKey((k) => k + 1);
     window.scrollTo(0, 0);
@@ -302,7 +284,7 @@ export default function App() {
           {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
           {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} />}
           {m && step === 2 && <TypographyStep m={m} setFont={setFont} setTypo={setTypo} />}
-          {m && step === 3 && <ShapeStep m={m} setShape={setShape} analysisEnabled={analysisEnabled} analyzing={analyzing} error={analyzeError} onAnalyze={analyze} setCharacter={setCharacter} clearCharacter={clearCharacter} />}
+          {m && step === 3 && <ShapeStep m={m} setShape={setShape} />}
           {m && step === 4 && <LogoStep m={m} setLogo={setLogo} addLogo={addLogo} />}
           {m && step === 5 && <ReviewStep m={m} md={generatedMd ?? md} generated={generatedMd != null} stale={stale} onReset={reset} />}
         </main>

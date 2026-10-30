@@ -405,48 +405,7 @@ export function TypographyStep({ m, setFont, setTypo }) {
 
 /* ---------- 4. Shape & feel ---------- */
 
-function CharacterCard({ m, analysisEnabled, analyzing, error, onAnalyze, setCharacter, clearCharacter }) {
-  const c = m.character;
-  const field = (key, label) => (
-    <label className="char-f">
-      <span className="lbl">{label}</span>
-      <textarea rows={2} value={c[key]} onChange={(e) => setCharacter({ [key]: e.target.value })} />
-    </label>
-  );
-  return (
-    <div className="char-card">
-      <div className="char-head">
-        <div>
-          <h3>Visual character <span className="opt">Optional</span></h3>
-          <p>Claude looks at a screenshot of their website and describes the mood, imagery and decorative style that CSS can’t measure. The result is added to the design file as extra rules.</p>
-        </div>
-        {!c && (
-          <button className="btn btn-secondary" disabled={!analysisEnabled || analyzing || !m.screenshot} onClick={onAnalyze}>
-            {analyzing ? 'Analyzing…' : 'Analyze with Claude'}
-          </button>
-        )}
-        {c && <button className="btn btn-ghost" onClick={clearCharacter}>Remove</button>}
-      </div>
-      {!analysisEnabled && !c && <div className="hint">Off by default. To enable it, add <code>ANTHROPIC_API_KEY</code> to <code>.env</code> and restart the app.</div>}
-      {analysisEnabled && !m.screenshot && !c && <div className="hint">No website screenshot is available for this company.</div>}
-      {error && <div className="alert">{error}</div>}
-      {c && (
-        <div className="char-fields">
-          {field('mood', 'Mood')}
-          {field('imagery', 'Imagery')}
-          {field('decoration', 'Decorative devices')}
-          {field('rhythm', 'Layout rhythm')}
-          <label className="char-f char-wide">
-            <span className="lbl">Dashboard rules (one per line)</span>
-            <textarea rows={5} value={c.rules.join('\n')} onChange={(e) => setCharacter({ rules: e.target.value.split('\n') })} />
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function ShapeStep({ m, setShape, ...characterProps }) {
+export function ShapeStep({ m, setShape }) {
   const s = m.shape;
   return (
     <section className="panel">
@@ -487,7 +446,6 @@ export function ShapeStep({ m, setShape, ...characterProps }) {
         </div>
         <Slider label="Line weight" value={s.lineWidth} min={1} max={4} onChange={(v) => setShape({ lineWidth: v })} />
       </div>
-      <CharacterCard m={m} {...characterProps} />
     </section>
   );
 }

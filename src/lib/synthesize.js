@@ -316,7 +316,6 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     screenshotSource: site?.screenshot ? 'live' : screenshotSource,
     siteMeasured: Boolean(site),
     siteUrl: site?.url || null,
-    character: null, // optional, filled by screenshot analysis
     notes,
     detected: null, // set below
   };

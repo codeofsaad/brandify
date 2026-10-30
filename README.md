@@ -17,7 +17,6 @@ npm run dev              # http://localhost:5173
 |---|---|
 | `BRANDFETCH_API_KEY` | Pulling brand data (required for companies outside the 3 built-in demos) |
 | `BRANDFETCH_CLIENT_ID` | Company name search suggestions (optional; without it, type a domain) |
-| `ANTHROPIC_API_KEY` | Optional "Visual character" screenshot analysis |
 | `BRANDIFY_PASSWORD` | Shared password for the whole app (production without SSO) |
 | `BRANDIFY_AUTH=sso` | Production only: skip the password because the platform already authenticates users |
 
@@ -36,7 +35,6 @@ heroku apps:lock --app <app-name>
 
 # Secrets: type them yourself, never commit them
 heroku config:set BRANDFETCH_API_KEY=... BRANDFETCH_CLIENT_ID=... BRANDIFY_AUTH=sso --app <app-name>
-# Optional: heroku config:set ANTHROPIC_API_KEY=... --app <app-name>
 
 heroku git:remote --app <app-name>
 git push heroku main              # builds with the Node buildpack (runs `npm run build`)
@@ -55,7 +53,7 @@ Open the app at the `*.herokuapp-internal.com` URL (the plain `.herokuapp.com` U
 
 ### Built-in protections
 
-- Rate limit: 40 expensive requests (brand pulls, site-analysis jobs, Claude analysis) per IP per 15 minutes, 60 searches per minute. Job polling is not counted.
+- Rate limit: 40 expensive requests (brand pulls, site-analysis jobs, reference lookups) per IP per 15 minutes, 60 searches per minute. Job polling is not counted.
 - The website analyzer only reaches public internet hosts. `localhost`, private networks and cloud metadata addresses are
   blocked, including for redirects and every sub-request the page makes.
 - Domain inputs are validated before they touch the filesystem.
