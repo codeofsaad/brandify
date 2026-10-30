@@ -55,6 +55,8 @@ export function derivePalettes(colors, ctx = {}) {
     brand: [colors.primary, ctx.accentIsInvented ? null : colors.accent, ...(ctx.extras || [])].filter(Boolean),
     harvest: ctx.harvest || [],
     accent: colors.accent,
+    reference: ctx.reference || [],
+    brandSource: ctx.fromReference ? 'screenshot' : 'brand',
   });
 }
 
@@ -268,27 +270,48 @@ function pickLogo(logos) {
 
 // ---------- entry point ----------
 
-export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null }) {
-  const { colors, prov, alternatives, monochrome, bfAll } = pickColors(brand, site);
+// A customer screenshot is their real app, so the colours read from it outrank the website's and Brandfetch's.
+function applyReference(colors, prov, a) {
+  if (a.primary) { colors.primary = a.primary; prov.primary = 'screenshot'; }
+  if (a.accent) { colors.accent = a.accent; prov.accent = 'screenshot'; }
+  colors.background = a.background; prov.background = 'screenshot';
+  colors.surface = a.surface; prov.surface = 'screenshot';
+  colors.text = a.text; prov.text = 'screenshot';
+  colors.textMuted = ensureContrast(mix(a.text, a.surface, 0.4), a.surface, 4.5); prov.textMuted = 'derived';
+  colors.border = mix(a.text, a.surface, a.theme === 'dark' ? 0.78 : 0.86); prov.border = 'derived';
+}
+
+export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false }) {
+  const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site);
+  const analysis = reference?.analysis || null;
+  if (analysis) applyReference(colors, prov, analysis);
+  const monochrome = analysis ? !analysis.primary : baseMono;
   // Extra colours that inform the chart palettes: the brand's other listed colours, and what the site's interface uses.
   const paletteContext = {
     extras: [...(alternatives.primary || []).map((a) => a.hex), ...(bfAll || []).filter((c) => ['brand', 'primary', 'accent'].includes(c.type)).map((c) => c.hex)],
     harvest: harvestFromSite(site),
     accentIsInvented: prov.accent === 'derived' || prov.accent === 'default',
+    reference: analysis?.series || [],
+    fromReference: Boolean(analysis),
   };
   const typography = pickTypography(brand, site, monochrome);
   const shape = pickShape(site, monochrome);
   const logos = collectLogos(brand);
   const notes = [];
   if (demo) notes.push('Brandfetch data is from built-in demo fixtures (no API key set).');
-  if (!site) {
+  if (!site && !screenshotOnly) {
     notes.push(
       siteError
         ? `The website could not be analyzed automatically (${siteError.replace(/\.$/, '')}), so corners, shadows, spacing and fonts use Brandfetch data and sensible defaults. Adjust them in the Shape and feel step.`
         : 'The live website could not be analyzed, so shape, spacing and fonts use defaults.',
     );
   }
-  else if (site.status !== 'ok') notes.push(`Website analysis was partial (${site.status}).`);
+  else if (site && site.status !== 'ok') notes.push(`Website analysis was partial (${site.status}).`);
+  if (analysis) {
+    notes.push(`Colors were read from ${analysis.shots === 1 ? 'your reference screenshot' : `${analysis.shots} reference screenshots`} (${analysis.theme} design), and they take priority over the website's colors.`);
+    if (analysis.photoHeavy) notes.push('The screenshot contains a lot of photography, so some colors may come from images rather than the interface. Check the palette.');
+    if (!site) notes.push('Fonts, corners, shadows and spacing are not read from screenshots yet, so they are defaults. Compare with your screenshot and adjust the Shape step.');
+  }
   if (monochrome) notes.push('This brand is essentially monochrome; the accent color is used sparingly.');
   for (const k of ['heading', 'body']) {
     if (typography[k].isSubstitute) notes.push(`"${typography[k].brandName}" is a custom font and not available on the web; substituting ${typography[k].family}.`);
@@ -315,6 +338,8 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
     screenshot: site?.screenshot || screenshot || null,
     screenshotSource: site?.screenshot ? 'live' : screenshotSource,
     siteMeasured: Boolean(site),
+    screenshotOnly,
+    reference: analysis ? { analysis, count: analysis.shots } : null,
     siteUrl: site?.url || null,
     notes,
     detected: null, // set below
@@ -326,3 +351,17 @@ export function withDetected(model) {
 }
 
 export { readableOn };
+
+
+// Add a screenshot to a company that is already loaded: its colors take over and the chart palettes are rebuilt.
+export function applyReferenceToModel(n, analysis) {
+  applyReference(n.colors, n.prov, analysis);
+  n.paletteContext = { ...n.paletteContext, reference: analysis.series, fromReference: true, accentIsInvented: !analysis.accent };
+  n.palettes = derivePalettes(n.colors, n.paletteContext);
+  n.reference = { analysis, count: analysis.shots };
+  n.monochrome = !analysis.primary;
+  n.notes = [
+    ...n.notes.filter((x) => !x.startsWith('Colors were read from')),
+    `Colors were read from ${analysis.shots === 1 ? 'your reference screenshot' : `${analysis.shots} reference screenshots`} (${analysis.theme} design), and they take priority over the website's colors.`,
+  ];
+}

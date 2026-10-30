@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
-import { synthesize, withDetected, derivePalettes } from './lib/synthesize.js';
+import { synthesize, withDetected, derivePalettes, applyReferenceToModel } from './lib/synthesize.js';
+import { analyzeShots, sampleColor } from './lib/screenshot.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
 import { fetchLogoAsset } from './lib/logo.js';
 import { loadFont, ensureCatalog } from './lib/fonts.js';
@@ -32,6 +33,8 @@ export default function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [shots, setShots] = useState([]); // reference screenshots; kept in memory only, never uploaded
+  const [picking, setPicking] = useState(null); // colour role being picked from a screenshot
   const [logoAssets, setLogoAssets] = useState({}); // keyed by logo URL: embedded copies of logos already fetched
   const [generating, setGenerating] = useState(false);
 
@@ -66,6 +69,13 @@ export default function App() {
   }, [confirmReset]);
 
   const currentLogo = m ? selectedLogo(m) : null;
+  useEffect(() => {
+    if (!picking) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setPicking(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picking]);
+
   const md = useMemo(() => (m ? renderDesignMd(m, { logoAsset: currentLogo ? logoAssets[currentLogo.url] : null }) : ''), [m, logoAssets]);
   const stale = generatedMd != null && generatedMd !== md;
   const isGenerated = generatedMd != null && !stale;
@@ -98,7 +108,8 @@ export default function App() {
         siteData = { site: null, siteError: 'You skipped the website analysis', screenshot: shot, screenshotSource: shot ? 'brandfetch' : null };
       }
       await ensureCatalog();
-      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, ...siteData })));
+      const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
+      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, reference, ...siteData })));
       setGeneratedMd(null);
       setStep(1);
     } catch (e) {
@@ -109,6 +120,48 @@ export default function App() {
       skipRef.current = null;
     }
   }
+
+  // Screenshot only: no company lookup. Everything comes from the image; fonts and shape stay at defaults.
+  async function loadFromShots(name) {
+    setLoading(true);
+    setLoadingFor(name);
+    setError('');
+    setProgress({ phase: 'brand', startedAt: Date.now() });
+    try {
+      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'customer';
+      const brand = { name: name.trim(), domain: slug, description: '', colors: [], fonts: [], logos: [] };
+      const reference = { analysis: await analyzeShots(shots) };
+      await ensureCatalog();
+      setM(withDetected(synthesize({ brand, demo: false, reference, screenshotOnly: true, screenshot: shots[0]?.dataUrl || null, screenshotSource: 'reference' })));
+      setGeneratedMd(null);
+      setStep(1);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setProgress(null);
+    }
+  }
+
+  // Add or remove screenshots after a company is loaded (Colors step). New ones are analyzed and applied straight away.
+  const addShotsLater = async (list) => {
+    const next = [...shots, ...list].slice(0, 4);
+    setShots(next);
+    try {
+      const analysis = await analyzeShots(next);
+      update((n) => applyReferenceToModel(n, analysis));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const removeShotLater = (id) => {
+    setShots((prev) => prev.filter((x) => x.id !== id));
+    setPicking(null);
+  };
+  const onSample = (hex) => {
+    if (picking) setColor(picking, hex);
+    setPicking(null);
+  };
 
   // Manual path: used when a company can't be pulled automatically.
   async function loadManual({ name, website, primary, logo }) {
@@ -127,7 +180,8 @@ export default function App() {
         logos: logo ? [{ type: 'logo', theme: 'dark', formats: [{ format: logo.format, src: logo.dataUrl }], uploaded: true, fileName: logo.name }] : [],
       };
       await ensureCatalog();
-      const model = synthesize({ brand, demo: false, ...siteData });
+      const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
+      const model = synthesize({ brand, demo: false, reference, ...siteData });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
       setM(withDetected(model));
@@ -184,6 +238,8 @@ export default function App() {
 
   const startOver = () => {
     setConfirmReset(false);
+    setShots([]);
+    setPicking(null);
     setM(null);
     setStep(0);
     setGeneratedMd(null);
@@ -281,8 +337,8 @@ export default function App() {
 
       <div className={`shell ${step === 0 ? 'solo' : ''}`}>
         <main className="main">
-          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
-          {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} />}
+          {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} onShotsOnly={loadFromShots} shots={shots} onAddShots={(l) => setShots((p) => [...p, ...l].slice(0, 4))} onRemoveShot={(id) => setShots((p) => p.filter((x) => x.id !== id))} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
+          {m && step === 1 && <ColorsStep m={m} setColor={setColor} setPalette={setPalette} regenPalettes={regenPalettes} shots={shots} onAddShots={addShotsLater} onRemoveShot={removeShotLater} onPick={(k) => setPicking(picking === k ? null : k)} picking={picking} />}
           {m && step === 2 && <TypographyStep m={m} setFont={setFont} setTypo={setTypo} />}
           {m && step === 3 && <ShapeStep m={m} setShape={setShape} />}
           {m && step === 4 && <LogoStep m={m} setLogo={setLogo} addLogo={addLogo} />}
@@ -291,14 +347,14 @@ export default function App() {
 
         {step !== 0 && (
           <aside className="side">
-            {m ? <Preview m={m} /> : null}
+            {m ? <Preview m={m} shots={shots} picking={picking} onSample={onSample} onCancelPick={() => setPicking(null)} /> : null}
           </aside>
         )}
       </div>
 
       <footer className="bar">
         <div className="bar-in">
-          <span className="bar-step">{m ? `${m.company.name} · Step ${step + 1} of ${STEPS.length} · ${STEPS[step][0]}` : 'Enter a company to begin'}</span>
+          <span className="bar-step">{m ? `${m.company.name} · Step ${step + 1} of ${STEPS.length} · ${STEPS[step][0]}` : 'Add a company or a screenshot to begin'}</span>
           <div className="bar-r">
             <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
             {!last && <button className="btn btn-primary btn-lg" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}

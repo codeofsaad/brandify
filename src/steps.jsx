@@ -3,8 +3,9 @@ import { cssStack, loadFont, fontGroups, matchFonts } from './lib/fonts.js';
 import { contrast } from './lib/color.js';
 import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
+import ReferenceDrop from './ReferenceDrop.jsx';
 
-const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', derived: 'Derived', default: 'Default', edited: 'Edited' };
+const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', screenshot: 'Screenshot', derived: 'Derived', default: 'Default', edited: 'Edited' };
 export const Badge = ({ kind }) => (kind ? <span className={`badge badge-${kind}`}>{PROV_LABEL[kind] || kind}</span> : null);
 
 function StepHead({ n, title, children }) {
@@ -138,8 +139,9 @@ function LoadingCard({ status, progress, onSkip }) {
   );
 }
 
-export function CompanyStep({ onLoad, onManual, loading, error, status, current, onContinue, progress, onSkip }) {
+export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, status, current, onContinue, progress, onSkip, shots, onAddShots, onRemoveShot }) {
   const [q, setQ] = useState('');
+  const [customer, setCustomer] = useState('');
   const [results, setResults] = useState([]);
   const [manual, setManual] = useState(false);
   const timer = useRef();
@@ -158,15 +160,26 @@ export function CompanyStep({ onLoad, onManual, loading, error, status, current,
     return () => clearTimeout(timer.current);
   }, [q]);
 
+  const hasCompany = q.trim().length >= 2;
+  const hasShots = shots.length > 0;
+  const needsName = hasShots && !hasCompany;
+  const canContinue = !loading && (hasCompany || (hasShots && customer.trim().length >= 2));
+  const label = loading && !manual ? 'Analyzing…' : hasCompany && hasShots ? 'Pull branding + use screenshot' : hasCompany ? 'Pull branding' : hasShots ? 'Analyze screenshot' : 'Continue';
+
   const submit = (v) => {
     const t = v.trim();
     if (t) onLoad(t);
   };
+  const go = () => {
+    if (!canContinue) return;
+    if (hasCompany) submit(results[0]?.domain || q);
+    else onShotsOnly(customer.trim());
+  };
 
   return (
-    <section className="panel">
-      <StepHead n="1" title="Which company are we branding for?">
-        We’ll pull their logo, colors and fonts, then study their website.
+    <section className="panel panel-wide">
+      <StepHead n="1" title="What are we branding for?">
+        Start with a company name, a screenshot of their existing app or slides, or both.
       </StepHead>
 
       {current && !loading && (
@@ -174,38 +187,55 @@ export function CompanyStep({ onLoad, onManual, loading, error, status, current,
           <div>
             <span className="lbl">Currently loaded</span>
             <b>{current.company.name}</b>
-            <small>Pull a different company below to replace it, or keep editing this one.</small>
+            <small>Start a new one below to replace it, or keep editing this one.</small>
           </div>
           <button className="btn btn-secondary" onClick={onContinue}>Continue editing</button>
         </div>
       )}
 
-      <div className="search">
-        <input
-          autoFocus
-          value={q}
-          placeholder="Enter the company name"
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit(results[0]?.domain || q)}
-          disabled={loading}
-        />
-        <button className="btn btn-primary" disabled={loading || q.trim().length < 2} onClick={() => submit(results[0]?.domain || q)}>
-          {loading && !manual ? 'Analyzing…' : 'Pull branding'}
-        </button>
+      <div className="start-grid">
+        <div className="start-card">
+          <h3>Company</h3>
+          <p>We pull their logo, colors and fonts, then study their website.</p>
+          <input
+            className="start-input"
+            autoFocus
+            value={q}
+            placeholder="Enter the company name"
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && go()}
+            disabled={loading}
+          />
+          {results.length > 0 && !loading && (
+            <ul className="results">
+              {results.map((r) => (
+                <li key={r.domain}>
+                  <button onClick={() => submit(r.domain)}>
+                    {r.icon ? <img src={r.icon} alt="" /> : <span className="ph" />}
+                    <span><b>{r.name}</b><small>{r.domain}{r.demo ? ' · demo data' : ''}</small></span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="start-or" aria-hidden="true"><span>and / or</span></div>
+
+        <div className="start-card">
+          <h3>Reference screenshot</h3>
+          <p>Their existing app, dashboard or slides. We match its colors.</p>
+          <ReferenceDrop shots={shots} onAdd={onAddShots} onRemove={onRemoveShot} disabled={loading} />
+          {needsName && (
+            <label className="field" style={{ marginTop: 12 }}>
+              <span className="lbl">Customer name *</span>
+              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Acme Corp" onKeyDown={(e) => e.key === 'Enter' && go()} disabled={loading} />
+            </label>
+          )}
+        </div>
       </div>
 
-      {results.length > 0 && !loading && (
-        <ul className="results">
-          {results.map((r) => (
-            <li key={r.domain}>
-              <button onClick={() => submit(r.domain)}>
-                {r.icon ? <img src={r.icon} alt="" /> : <span className="ph" />}
-                <span><b>{r.name}</b><small>{r.domain}{r.demo ? ' · demo data' : ''}</small></span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <button className="btn btn-primary btn-lg start-go" disabled={!canContinue} onClick={go}>{label}</button>
 
       {loading && <LoadingCard status={status} progress={progress} onSkip={onSkip} />}
 
@@ -249,7 +279,7 @@ function Swatch({ hex, onChange, label }) {
   );
 }
 
-const SOURCE_LABEL = { brand: 'Brand', site: 'Website', derived: 'Derived', neutral: 'Neutral', edited: 'Edited' };
+const SOURCE_LABEL = { brand: 'Brand', site: 'Website', screenshot: 'Screenshot', derived: 'Derived', neutral: 'Neutral', edited: 'Edited' };
 
 function PaletteStrip({ title, hint, colors, onEdit, sources }) {
   return (
@@ -267,12 +297,18 @@ function PaletteStrip({ title, hint, colors, onEdit, sources }) {
   );
 }
 
-export function ColorsStep({ m, setColor, setPalette, regenPalettes }) {
+export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onAddShots, onRemoveShot, onPick, picking }) {
   return (
     <section className="panel">
       <StepHead n="2" title="Colors">
         Here’s what we found. Click any swatch to change it. Each value shows where it came from.
       </StepHead>
+
+      <details className="ref-shortcut" open={shots.length > 0}>
+        <summary>{shots.length ? `Reference screenshot${shots.length > 1 ? 's' : ''} (${shots.length})` : 'Have a screenshot of their existing app? Add it to match its colors'}</summary>
+        <ReferenceDrop shots={shots} onAdd={onAddShots} onRemove={onRemoveShot} compact />
+        {shots.length > 0 && <p className="dz-note">Use <b>Pick</b> on any color below, then click that color in the screenshot (right panel).</p>}
+      </details>
 
       <div className="roles">
         {ROLES.map(([key, label, use]) => {
@@ -291,6 +327,9 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes }) {
                 onChange={(e) => /^#[0-9a-fA-F]{6}$/.test(e.target.value) && setColor(key, e.target.value.toUpperCase())}
                 spellCheck={false}
               />
+              {shots.length > 0 && (
+                <button className={`pick ${picking === key ? 'on' : ''}`} onClick={() => onPick(key)} title="Pick this color from your screenshot">{picking === key ? 'Click it…' : 'Pick'}</button>
+              )}
               {cr != null && <span className={`cr ${cr >= 4.5 ? 'ok' : 'bad'}`} title="Contrast against the surface color">{cr.toFixed(1)}:1</span>}
             </div>
           );
@@ -414,7 +453,11 @@ export function ShapeStep({ m, setShape }) {
       </StepHead>
       {m.siteMeasured === false && (
         <div className="soft-warn">
-          <b>We couldn't measure this website,</b> so the values below are defaults, not what the company actually uses. Check the live site and adjust the corners, elevation and density to match.
+          {m.screenshotOnly ? (
+            <><b>These are defaults.</b> Fonts, corners, shadows and spacing are not read from screenshots yet. Compare with your screenshot (right panel, "Your screenshot" tab) and adjust the corners, elevation and density to match.</>
+          ) : (
+            <><b>We couldn't measure this website,</b> so the values below are defaults, not what the company actually uses. Check the live site and adjust the corners, elevation and density to match.</>
+          )}
         </div>
       )}
       <div className="feel-grid">

@@ -13,6 +13,19 @@ const toLinear = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
 const fromLinear = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
 const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
+// r, g, b in 0..255
+export function rgbToOklab(R, G, B) {
+  const [r, g, b] = [R / 255, G / 255, B / 255].map(toLinear);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+}
+
 export function hexToOklab(hex) {
   const [r, g, b] = hexToRgb(hex).map(toLinear);
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
@@ -110,7 +123,7 @@ const COMPANIONS = [
  * @param {string[]} p.neutrals    neutral brand colours (used only for the grey slot tint)
  * @returns {{ categorical: {hex:string, source:string}[], anchor: object }}
  */
-export function buildCategorical({ brand = [], harvest = [], neutrals = [] }) {
+export function buildCategorical({ brand = [], harvest = [], neutrals = [], reference = [], brandSource = 'brand' }) {
   const chromatic = brand.map((hex) => ({ hex, ...hexToOklch(hex) })).filter(isChromatic);
   const anchor = chromatic[0] || { hex: null, L: 0.62, C: 0.07, h: 250 }; // steel blue when the brand has no colour
   const brandC = chromatic.length ? chromatic.reduce((s, c) => s + c.C, 0) / chromatic.length : 0.07;
@@ -127,7 +140,9 @@ export function buildCategorical({ brand = [], harvest = [], neutrals = [] }) {
   };
 
   // 1) the brand's own colours, exactly as given (a brand with no colour of its own gets a calm steel-blue lead)
-  chromatic.slice(0, 2).forEach((c) => add(c.hex, 'brand'));
+  chromatic.slice(0, 2).forEach((c) => add(c.hex, brandSource));
+  // colours read from a customer screenshot are the real thing too (chart series, buttons, headers)
+  reference.map((hex) => ({ hex, ...hexToOklch(hex) })).filter(isChromatic).forEach((c) => out.length < 6 && add(c.hex, 'screenshot'));
   if (!chromatic.length) add(oklchToHex(0.56, C_t, anchor.h), 'derived');
 
   // 2) colours the company actually uses in its interface, if they sit in a harmonious place relative to the anchor
@@ -220,8 +235,8 @@ export function buildDiverging(anchor, C_t, { accent = null, pinkAllowed = false
   ];
 }
 
-export function generatePalettes({ brand, harvest, neutrals, accent }) {
-  const { categorical, anchor, C_t, pinkAllowed } = buildCategorical({ brand, harvest, neutrals });
+export function generatePalettes({ brand, harvest, neutrals, accent, reference, brandSource }) {
+  const { categorical, anchor, C_t, pinkAllowed } = buildCategorical({ brand, harvest, neutrals, reference, brandSource });
   return {
     categorical: categorical.map((c) => c.hex),
     sources: categorical.map((c) => c.source),

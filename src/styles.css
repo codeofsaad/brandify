@@ -351,7 +351,7 @@ h1, h2, h3, p { margin: 0; }
 .update-banner .btn { padding: 7px 16px; flex: none; }
 
 .pal-src { font-size: 10.5px; font-weight: 600; text-align: center; color: var(--t-muted); letter-spacing: 0.2px; }
-.pal-src-brand { color: #0b5cab; } .pal-src-site { color: #1d6b37; } .pal-src-edited { color: var(--t-purple); }
+.pal-src-brand { color: #0b5cab; } .pal-src-screenshot { color: #b4540a; } .pal-src-site { color: #1d6b37; } .pal-src-edited { color: var(--t-purple); }
 
 /* swatches inside a caption cell must keep their height (flex:1 in a column collapses to 0) */
 .pal-cell .swatch { flex: none; height: 44px; width: 100%; }
@@ -379,3 +379,42 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 760px) { .co-strip { padding: 0 16px; } .co-label { display: none; } }
 
 .soft-warn { margin: 0 0 22px; padding: 12px 16px; border-radius: 12px; background: #fff3d6; border: 1px solid #f0d28a; color: #5c3b00; font-size: 14px; line-height: 1.5; }
+
+/* ----- start screen: company + reference screenshot ----- */
+.shell.solo { grid-template-columns: minmax(0, 980px); }
+.panel-wide { padding: 32px 36px; }
+.start-grid { display: grid; grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); gap: 0; align-items: start; }
+.start-card h3 { font-size: 16px; color: var(--t-navy); }
+.start-card > p { margin: 4px 0 14px; color: var(--t-muted); font-size: 13.5px; line-height: 1.45; }
+.start-input { width: 100%; font-size: 17px; padding: 14px 16px; border: 2px solid var(--t-border); border-radius: 12px; outline: none; }
+.start-input:focus { border-color: var(--t-blue); box-shadow: 0 0 0 4px rgba(1, 118, 211, 0.14); }
+.start-or { align-self: stretch; display: grid; place-items: center; position: relative; }
+.start-or::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--t-border); }
+.start-or span { position: relative; background: #fff; padding: 6px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--t-muted); text-align: center; line-height: 1.25; }
+.start-go { width: 100%; margin-top: 26px; }
+.start-card .results { margin-top: 8px; }
+
+.dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px; padding: 16px; text-align: center; border: 2px dashed #aab8c8; border-radius: 12px; background: #fafcfe; cursor: pointer; transition: none; }
+.dropzone:hover, .dropzone.over, .dropzone:focus-visible { border-color: var(--t-blue); background: var(--t-blue-tint); outline: none; }
+.dropzone.off { opacity: 0.5; cursor: not-allowed; }
+.dropzone b { font-size: 14.5px; color: var(--t-navy); }
+.dropzone small { color: var(--t-muted); font-size: 12.5px; }
+.dz-icon { font-size: 26px; line-height: 1; color: var(--t-blue); }
+.refdrop.compact .dropzone { min-height: 84px; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.thumb { position: relative; width: 92px; height: 64px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--t-border); background: #fff; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(3, 45, 96, 0.8); color: #fff; font-size: 14px; line-height: 18px; padding: 0; }
+.dz-err { margin-top: 10px; color: var(--t-red); font-size: 13px; }
+.dz-note { margin: 10px 0 0; color: var(--t-muted); font-size: 12px; line-height: 1.45; }
+
+/* Colors step: add a screenshot, pick colors from it */
+.ref-shortcut { margin: 0 0 18px; border: 1px solid #e3e8ee; border-radius: 12px; padding: 4px 14px 12px; background: #fafcfe; }
+.ref-shortcut summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; color: var(--t-navy); }
+.pick { border: 1px solid var(--t-blue); background: #fff; color: var(--t-blue); border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+.pick:hover, .pick.on { background: var(--t-blue); color: #fff; }
+.pick-banner { position: sticky; top: 0; z-index: 2; padding: 9px 14px; background: #fff3d6; color: #5c3b00; font-size: 13px; border-bottom: 1px solid #f0d28a; }
+.site-shot img.picking { cursor: crosshair; }
+@media (max-width: 760px) { .start-grid { grid-template-columns: 1fr; gap: 14px; } .start-or { height: 28px; } .start-or::before { top: 50%; bottom: auto; left: 0; right: 0; width: auto; height: 1px; } }
+
+.badge-screenshot { background: #fdebd9; color: #9a4a06; }

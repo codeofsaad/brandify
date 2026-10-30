@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { cssVars, selectedLogo } from './lib/render.js';
+import { sampleColor } from './lib/screenshot.js';
 
 // Series colors for secondary marks: categorical palette without the primary (which leads).
 const series = (m) => m.palettes.categorical.filter((c) => c.toUpperCase() !== m.colors.primary.toUpperCase());
@@ -64,8 +65,13 @@ function LineChart({ m }) {
   );
 }
 
-export default function Preview({ m }) {
+const ROLE_LABEL = { primary: 'Primary', accent: 'Accent', background: 'Background', surface: 'Surface', text: 'Text', textMuted: 'Muted text', border: 'Border', success: 'Success', warning: 'Warning', danger: 'Danger' };
+
+export default function Preview({ m, shots = [], picking = null, onSample, onCancelPick }) {
   const [tab, setTab] = useState('app');
+  // Picking a color jumps to the screenshot; if the screenshots go away, leave that tab.
+  React.useEffect(() => { if (picking) setTab('shot'); }, [picking]);
+  React.useEffect(() => { if (tab === 'shot' && !shots.length) setTab('app'); }, [shots.length, tab]);
   const logo = selectedLogo(m);
   return (
     <div className="preview-wrap">
@@ -73,11 +79,33 @@ export default function Preview({ m }) {
         <span className="eyebrow">Live preview</span>
         <div className="seg seg-sm">
           <button className={tab === 'app' ? 'on' : ''} onClick={() => setTab('app')}>Data app</button>
-          <button className={tab === 'site' ? 'on' : ''} onClick={() => setTab('site')} disabled={!m.screenshot}>Their website</button>
+          <button className={tab === 'site' ? 'on' : ''} onClick={() => setTab('site')} disabled={!m.screenshot || m.screenshotSource === 'reference'}>Their website</button>
+          {shots.length > 0 && <button className={tab === 'shot' ? 'on' : ''} onClick={() => setTab('shot')}>Your screenshot</button>}
         </div>
       </div>
 
-      {tab === 'site' && m.screenshot ? (
+      {tab === 'shot' && shots.length > 0 ? (
+        <div className="site-shot">
+          {picking && (
+            <div className="pick-banner">
+              Click the {ROLE_LABEL[picking] || picking} color in the screenshot. <button className="linkbtn" onClick={onCancelPick}>Cancel (Esc)</button>
+            </div>
+          )}
+          {shots.map((s) => (
+            <img
+              key={s.id}
+              src={s.dataUrl}
+              alt={s.name}
+              className={picking ? 'picking' : ''}
+              onClick={async (e) => {
+                if (!picking) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                onSample(await sampleColor(s.dataUrl, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height));
+              }}
+            />
+          ))}
+        </div>
+      ) : tab === 'site' && m.screenshot ? (
         <div className="site-shot">
           {m.screenshotSource === 'brandfetch' && <div className="shot-note">This is Brandfetch’s saved screenshot of the website.</div>}
           <img src={m.screenshot} alt={`${m.company.name} website`} />
