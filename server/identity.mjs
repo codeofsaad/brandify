@@ -88,13 +88,29 @@ export async function harvestIdentity(found, domain) {
   });
   const settled = await Promise.allSettled(list.slice(0, 6).map((c, i) => download(c, domain, i)));
   const logos = settled.map((s) => (s.status === 'fulfilled' ? s.value : null)).filter(Boolean).slice(0, 4);
-  return { name: found.name || '', description: found.description || '', logos };
+  return { name: decode(found.name), description: decode(found.description), logos };
 }
 
 // ---------- when no browser could read the page (bot protection, timeouts): plain HTTP ----------
 
 const attr = (tag, name) => tag.match(new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, 'i'))?.slice(2).find((x) => x != null);
-const decode = (s) => (s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+// Page source escapes text (&#x27; for an apostrophe), and some sites escape it twice, so decode until nothing changes.
+const NAMED = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', reg: '®', trade: '™', copy: '©' };
+const decodeOnce = (s) =>
+  s.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));/gi, (m, hex, dec, name) => {
+    if (name) return NAMED[name.toLowerCase()] ?? m;
+    const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+    return code > 0 && code < 0x110000 ? String.fromCodePoint(code) : m;
+  });
+export function decode(s) {
+  let out = String(s || '');
+  for (let i = 0; i < 3; i++) {
+    const next = decodeOnce(out);
+    if (next === out) break;
+    out = next;
+  }
+  return out.trim();
+}
 
 export async function findViaHttp(domain) {
   const found = { name: '', description: '', candidates: [] };
