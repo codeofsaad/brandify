@@ -173,12 +173,11 @@ export async function analyzeShots(shots) {
   for (const shot of shots) results.push(await analyzeOne(shot));
   const base = results[0];
   const series = [];
-  for (let i = 0; i < 8; i++) {
-    for (const r of results) {
-      const c = r.series[i];
-      if (c && series.length < 8 && series.every((s) => deltaE(s, c) > 0.07)) series.push(c);
-    }
-  }
+  const add = (c) => { if (c && series.length < 8 && series.every((s) => deltaE(s, c) > 0.07)) series.push(c); };
+  // The first screenshot's own top colours lead, so primary and accent stay a matching pair from one design...
+  base.series.slice(0, 2).forEach(add);
+  // ...then the other screenshots (and the rest of the first) add chart colours, taking turns.
+  for (let i = 0; i < 8; i++) for (const r of results) add(r.series[i]);
   const primary = series[0] || null;
   const hueGap = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
   const accent = primary ? series.slice(1).find((h) => hueGap(hexToOklch(h).h, hexToOklch(primary).h) >= 40) || null : null;
