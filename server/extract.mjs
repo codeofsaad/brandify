@@ -241,9 +241,54 @@ export function sampleStyles() {
     };
   }
 
+  // The company's name, description and logo candidates as the page presents them (used when Brandfetch is unavailable).
+  const identity = (() => {
+    const meta = (sel) => document.querySelector(sel)?.getAttribute('content')?.trim() || '';
+    const abs = (u) => { try { return new URL(u, location.href).href; } catch { return null; } };
+    const candidates = [];
+    const nearTop = (el) => el.getBoundingClientRect().top + window.scrollY < 300;
+    for (const img of document.querySelectorAll('header img, [role=banner] img, nav img, a[href="/"] img, [class*=logo i] img, img[class*=logo i], img[alt*=logo i], img[src*=logo i]')) {
+      if (candidates.length >= 4 || !nearTop(img)) continue;
+      const url = img.currentSrc || img.src;
+      if (url && !/^data:image\/gif/.test(url)) candidates.push({ kind: 'logo', url: url.startsWith('data:') ? url : abs(url) });
+    }
+    // Inline SVG logos draw with CSS colours (including currentColor), so write the final colours into the copy we keep.
+    for (const svg of document.querySelectorAll('header svg, [role=banner] svg, nav svg, a[href="/"] svg, [class*=logo i] svg, svg[class*=logo i], svg[aria-label*=logo i]')) {
+      if (candidates.length >= 6 || !nearTop(svg)) continue;
+      const r = svg.getBoundingClientRect();
+      if (r.width < 40 || r.height < 12 || r.width > 600 || svg.querySelector('use[href^="http"], image')) continue;
+      const clone = svg.cloneNode(true);
+      const from = [svg, ...svg.querySelectorAll('*')];
+      const to = [clone, ...clone.querySelectorAll('*')];
+      from.forEach((el, i) => {
+        if (!/^(path|circle|rect|polygon|ellipse|polyline|line)$/i.test(el.localName)) return;
+        const cs = getComputedStyle(el);
+        if (cs.fill && cs.fill !== 'none') to[i].setAttribute('fill', cs.fill);
+        if (cs.stroke && cs.stroke !== 'none') { to[i].setAttribute('stroke', cs.stroke); to[i].setAttribute('stroke-width', cs.strokeWidth); }
+      });
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      if (!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${Math.round(r.width)} ${Math.round(r.height)}`);
+      clone.removeAttribute('class');
+      clone.setAttribute('width', String(Math.round(r.width)));
+      clone.setAttribute('height', String(Math.round(r.height)));
+      candidates.push({ kind: 'logo', svg: clone.outerHTML });
+    }
+    const icons = [...document.querySelectorAll('link[rel~="apple-touch-icon"]')].concat([...document.querySelectorAll('link[rel~="icon"]')]);
+    for (const l of icons.slice(0, 3)) {
+      const url = l.getAttribute('href') && abs(l.getAttribute('href'));
+      if (url) candidates.push({ kind: 'symbol', url });
+    }
+    return {
+      name: meta('meta[property="og:site_name"]') || meta('meta[name="application-name"]') || meta('meta[name="apple-mobile-web-app-title"]'),
+      description: meta('meta[name="description"]') || meta('meta[property="og:description"]'),
+      candidates,
+    };
+  })();
+
   const bodyW = document.documentElement.clientWidth;
   const sections = [...document.querySelectorAll('section, main > div')].filter(visible).slice(0, 20);
   return {
+    identity,
     title: document.title,
     buttons: {
       count: btn.length,

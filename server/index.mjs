@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
+import { harvestIdentity, findViaHttp } from './identity.mjs';
 
 // The Fir Node buildpack does not set NODE_ENV at runtime, so hosting is detected explicitly:
 // BRANDIFY_HOSTED=1 (set as a config var), NODE_ENV=production, or Heroku's DYNO variable.
@@ -84,10 +85,10 @@ const brandCache = new Map(); // domain -> { brand, at }
 async function brandfetchError(r, domain) {
   const body = await r.json().catch(() => ({}));
   if (body.error === 'no_api_credits') {
-    return Object.assign(new Error('Brandfetch has no API credits left, so brand data cannot be pulled for new companies right now. Ask the Brandify owner to top up the Brandfetch account. Companies pulled recently still work.'), { status: 503 });
+    return Object.assign(new Error('Brandfetch has no API credits left, so brand data cannot be pulled for new companies right now. Ask the Brandify owner to top up the Brandfetch account. Companies pulled recently still work.'), { status: 503, code: 'no_credits' });
   }
-  if (r.status === 404) return Object.assign(new Error(`Brandfetch has no brand data for ${domain}. Check the spelling, or upload a screenshot or logo instead.`), { status: 404 });
-  if (r.status === 429) return Object.assign(new Error('Brandfetch is rate limiting requests. Wait a minute and try again.'), { status: 429 });
+  if (r.status === 404) return Object.assign(new Error(`Brandfetch has no brand data for ${domain}. Check the spelling, or upload a screenshot or logo instead.`), { status: 404, code: 'not_found' });
+  if (r.status === 429) return Object.assign(new Error('Brandfetch is rate limiting requests. Wait a minute and try again.'), { status: 429, code: 'rate_limited' });
   return Object.assign(new Error(`Brandfetch returned ${r.status} for ${domain}`), { status: r.status });
 }
 
@@ -105,7 +106,7 @@ async function fetchBrand(domain) {
     if (!fixtures[domain]) throw await brandfetchError(r, domain);
   }
   if (fixtures[domain]) return { brand: fixtures[domain], demo: true };
-  throw Object.assign(new Error('No Brandfetch API key is set and no demo data exists for this company. Add BRANDFETCH_API_KEY to .env.'), { status: 401 });
+  throw Object.assign(new Error('No Brandfetch API key is set and no demo data exists for this company. Add BRANDFETCH_API_KEY to .env.'), { status: 401, code: 'no_key' });
 }
 
 // When a site blocks automated browsers, use Brandfetch's own screenshot so the preview still has something real.
@@ -159,7 +160,15 @@ app.post('/api/brand', async (req, res) => {
     const { brand, demo } = await fetchBrand(domain);
     res.json({ brand, demo });
   } catch (e) {
-    res.status(e.status || 502).json({ error: e.message });
+    // Brandfetch could not answer (no credits, unknown brand, rate limit, outage). Hand back an empty brand and say why,
+    // so the app can read the name, logo and colours from the company's own website instead.
+    const label = domain.split('.')[0].replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    console.log(`[brand ${domain}] Brandfetch unavailable (${e.code || e.status}); using the website instead`);
+    res.json({
+      brand: { name: label, domain, description: '', colors: [], fonts: [], logos: [] },
+      demo: false,
+      fallback: { code: e.code || 'unavailable', message: e.message },
+    });
   }
 });
 
@@ -175,7 +184,7 @@ setInterval(() => {
 const withTimeout = (promise, ms, message) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms).unref())]);
 
-async function analyzeSite({ input, domain, screenshotUrl }) {
+async function analyzeSite({ input, domain, screenshotUrl, wantIdentity = false }) {
   if (Number(process.env.BRANDIFY_TEST_DELAY_MS) > 0) await new Promise((r) => setTimeout(r, Number(process.env.BRANDIFY_TEST_DELAY_MS))); // testing only
   let site = null;
   let siteError = null;
@@ -186,6 +195,22 @@ async function analyzeSite({ input, domain, screenshotUrl }) {
   } catch (e) {
     siteError = e.message;
   }
+  // Without Brandfetch the website supplies the name, description and logos. A page that refused the browser is read
+  // over plain HTTP instead (many sites block automation but still serve their icons).
+  let identity = null;
+  if (wantIdentity) {
+    try {
+      const fromPage = site?.identity?.candidates?.length ? await withTimeout(harvestIdentity(site.identity, domain), 15000, 'logo download timed out') : null;
+      identity = fromPage?.logos.length ? fromPage : null;
+      if (!identity) {
+        const viaHttp = await withTimeout(harvestIdentity(await findViaHttp(domain), domain), 20000, 'logo download timed out');
+        identity = { name: fromPage?.name || viaHttp.name, description: fromPage?.description || viaHttp.description, logos: viaHttp.logos };
+      }
+    } catch (e) {
+      console.log(`[identity ${domain}] ${e.message}`);
+    }
+  }
+  if (site) delete site.identity; // raw candidates (including SVG markup) are not needed by the browser
   // Nothing measured from a blocked or failed page is trustworthy; fall back to Brandfetch's screenshot.
   const live = site?.screenshot || null;
   const fallback = live ? null : await fallbackScreenshot(screenshotUrl, domain);
@@ -193,6 +218,7 @@ async function analyzeSite({ input, domain, screenshotUrl }) {
   return {
     site,
     siteError,
+    identity,
     screenshot: screenshot ? `${screenshot}?v=${Date.now()}` : null,
     screenshotSource: screenshot ? (live ? 'live' : 'brandfetch') : null,
   };
@@ -211,7 +237,7 @@ app.post('/api/site/start', (req, res) => {
     const t0 = Date.now();
     console.log(`[job ${id.slice(0, 8)}] start ${domain}`);
     try {
-      job.result = await analyzeSite({ input, domain, screenshotUrl: req.body?.screenshotUrl });
+      job.result = await analyzeSite({ input, domain, screenshotUrl: req.body?.screenshotUrl, wantIdentity: req.body?.identity === true });
       job.status = 'done';
       console.log(`[job ${id.slice(0, 8)}] done in ${((Date.now() - t0) / 1000).toFixed(1)}s: ${job.result.site ? 'measured site' : `no site (${job.result.siteError})`}`);
     } catch (e) {

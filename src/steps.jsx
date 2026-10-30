@@ -381,7 +381,7 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
               <i style={{ background: a.hex }} /> {a.hex}
             </button>
           ))}
-          <small>Brandfetch&apos;s brand color is used by default.</small>
+          <small>{m.prov.primary === 'logo' ? 'The color read from the logo is used by default.' : "Brandfetch's brand color is used by default."}</small>
         </div>
       )}
 

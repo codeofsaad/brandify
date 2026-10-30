@@ -98,9 +98,10 @@ export default function App() {
       const domain = input.includes('.') ? input : guessDomain(input);
       // 1) brand identity (fast)  2) website analysis (slow, runs as a background job you can skip)
       const data = await fetchJson('/api/brand', { domain });
+      const fallback = data.fallback || null; // Brandfetch could not answer: the website supplies the name and logo
       setProgress({ phase: 'site', startedAt: Date.now(), status: 'queued', ahead: 0 });
       let siteData = await analyzeSite(
-        { domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url },
+        { domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url, identity: Boolean(fallback) },
         { signal: ctrl.signal, onProgress: (p) => setProgress((prev) => ({ ...prev, ...p })) },
       );
       if (ctrl.signal.aborted) {
@@ -108,11 +109,23 @@ export default function App() {
         const shot = data.brand.screenshot?.url || null;
         siteData = { site: null, siteError: 'You skipped the website analysis', screenshot: shot, screenshotSource: shot ? 'brandfetch' : null };
       }
+      if (fallback) {
+        const found = siteData.identity;
+        if (!found?.logos?.length && !siteData.site) {
+          throw new Error(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} The company website could not be read either (${siteData.siteError || 'no response'}). Upload a logo or screenshot, or enter the details manually.`);
+        }
+        data.brand = { ...data.brand, name: cleanSiteName(found?.name) || data.brand.name, description: found?.description || '', logos: found?.logos || [] };
+      }
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
       // Brandfetch has no real brand colour? Read the logo before falling back to the website.
       const logoColors = brandfetchHasColor(data.brand) ? [] : await colorsFromLogos(collectLogos(data.brand));
-      setM(withDetected(synthesize({ brand: data.brand, demo: data.demo, reference, logoColors, ...siteData })));
+      const model = synthesize({ brand: data.brand, demo: data.demo, reference, logoColors, ...siteData });
+      if (fallback) {
+        model.fromWebsite = true;
+        model.notes.unshift(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''} instead, so check them carefully.`);
+      }
+      setM(withDetected(model));
       setGeneratedMd(null);
       setStep(1);
     } catch (e) {
@@ -392,6 +405,17 @@ export default function App() {
     </div>
   );
 }
+
+const FALLBACK_WHY = {
+  no_credits: 'Brandfetch has no API credits left.',
+  not_found: 'Brandfetch has no brand data for this company.',
+  rate_limited: 'Brandfetch is rate limiting requests.',
+  no_key: 'Brandfetch is not set up.',
+  unavailable: 'Brandfetch could not be reached.',
+};
+
+// "Dunkin'®" -> "Dunkin'", "Nike.com" -> "Nike"
+const cleanSiteName = (n) => String(n || '').replace(/[®™©]/g, '').replace(/\.(com|net|org|io|co)$/i, '').trim().slice(0, 60);
 
 function guessDomain(name) {
   return `${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')}.com`;
