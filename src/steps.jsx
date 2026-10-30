@@ -126,7 +126,7 @@ function LoadingCard({ status, progress, onSkip }) {
       <div className="loading-body">
         <b>Studying {status}…</b>
         <p>{line}{progress?.phase === 'site' ? ` ${siteSecs}s` : ''}</p>
-        {progress?.phase === 'site' && siteSecs >= 20 && (
+        {progress?.phase === 'site' && siteSecs >= 45 && (
           <p className="slow-hint">
             This site is taking longer than usual.{' '}
             <button className="linkbtn" onClick={onSkip}>Skip the website analysis and continue</button>

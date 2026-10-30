@@ -282,6 +282,21 @@ export default function App() {
         </ol>
       </nav>
 
+      {m && step > 0 && (
+        <div className="co-strip" aria-label="Current company">
+          <div className="co-chip">
+            {m.logos.find((l) => l.kind === 'icon')?.url ? (
+              <img src={m.logos.find((l) => l.kind === 'icon').url} alt="" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            ) : (
+              <span className="co-initial">{m.company.name.slice(0, 1).toUpperCase()}</span>
+            )}
+            <span className="co-label">Branding for</span>
+            <b>{m.company.name}</b>
+            <small>{m.company.domain}</small>
+          </div>
+        </div>
+      )}
+
       <div className={`shell ${step === 0 ? 'solo' : ''}`}>
         <main className="main">
           {step === 0 && <CompanyStep key={resetKey} onLoad={load} onManual={loadManual} loading={loading} error={error} status={loadingFor} progress={progress} onSkip={() => skipRef.current?.()} current={m} onContinue={() => setStep(1)} />}
@@ -301,7 +316,7 @@ export default function App() {
 
       <footer className="bar">
         <div className="bar-in">
-          <span className="bar-step">{m ? `Step ${step + 1} of ${STEPS.length} · ${STEPS[step][0]}` : 'Enter a company to begin'}</span>
+          <span className="bar-step">{m ? `${m.company.name} · Step ${step + 1} of ${STEPS.length} · ${STEPS[step][0]}` : 'Enter a company to begin'}</span>
           <div className="bar-r">
             <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
             {!last && <button className="btn btn-primary btn-lg" disabled={!m} onClick={() => setStep(step + 1)}>Next</button>}

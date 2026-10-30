@@ -11,7 +11,7 @@ await page.waitForSelector('.loading-card');
 const t0 = Date.now();
 await page.waitForTimeout(6000);
 const early = { text: (await page.locator('.loading-body').innerText()).replace(/\n+/g, ' | '), skipVisible: await page.locator('.slow-hint').count() };
-await page.waitForSelector('.slow-hint', { timeout: 30000 });
+await page.waitForSelector('.slow-hint', { timeout: 60000 });
 const appearedAfter = Math.round((Date.now() - t0) / 1000);
 const hint = (await page.locator('.slow-hint').innerText()).replace(/\n+/g, ' ');
 await page.click('.slow-hint .linkbtn');

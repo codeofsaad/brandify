@@ -367,3 +367,13 @@ h1, h2, h3, p { margin: 0; }
 .match.on { border-color: var(--t-blue); box-shadow: 0 0 0 2px rgba(1, 118, 211, 0.15); }
 .match-sample { font-size: 18px; line-height: 1.2; color: var(--t-ink); }
 .match small { color: var(--t-muted); font-size: 11.5px; }
+
+/* ----- current company, visible on every step after the first ----- */
+.co-strip { max-width: 1456px; margin: 6px auto 0; padding: 0 28px; }
+.co-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 8px; background: #fff; border-radius: 999px; box-shadow: var(--shadow-card); font-size: 13.5px; max-width: 100%; }
+.co-chip img, .co-initial { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: none; background: #eef0f3; }
+.co-initial { display: grid; place-items: center; font-weight: 700; color: var(--t-blue); background: var(--t-blue-tint); font-size: 13px; }
+.co-label { color: var(--t-muted); }
+.co-chip b { color: var(--t-navy); font-size: 15px; }
+.co-chip small { color: var(--t-muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .co-strip { padding: 0 16px; } .co-label { display: none; } }
