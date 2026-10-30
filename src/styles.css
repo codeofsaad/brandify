@@ -431,3 +431,16 @@ h1, h2, h3, p { margin: 0; }
 .color-source { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-top: 14px; }
 .color-source .lbl { margin: 0; }
 .color-source small { color: var(--t-muted); font-size: 12px; line-height: 1.4; }
+
+/* ----- Shape step: every control has the same structure and height, so rows never change size ----- */
+.feel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 36px; align-items: start; }
+.ctl { display: flex; flex-direction: column; gap: 8px; min-height: 96px; }
+.ctl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.ctl-l { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--t-muted); }
+.ctl-head b { font-variant-numeric: tabular-nums; color: var(--t-ink); font-size: 13px; }
+.ctl input[type=range] { width: 100%; accent-color: var(--t-blue); margin: 4px 0; }
+.ctl input[type=range]:disabled { opacity: 0.35; }
+.ctl .seg { align-self: flex-start; }
+.ctl-hint { min-height: 18px; font-size: 12px; color: var(--t-muted); line-height: 1.4; }
+.pill-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--t-ink); font-size: 12.5px; }
+.pill-toggle input { accent-color: var(--t-blue); width: 15px; height: 15px; margin: 0; }

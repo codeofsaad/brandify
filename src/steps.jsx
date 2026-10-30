@@ -464,6 +464,20 @@ export function TypographyStep({ m, setFont, setTypo }) {
 
 /* ---------- 4. Shape & feel ---------- */
 
+function Control({ label, value, badge, hint, children }) {
+  return (
+    <div className="ctl">
+      <div className="ctl-head"><span className="ctl-l">{label}{badge}</span>{value != null && <b>{value}</b>}</div>
+      {children}
+      <div className="ctl-hint">{hint}</div>
+    </div>
+  );
+}
+
+const RangeInput = ({ value, min, max, onChange, disabled }) => (
+  <input type="range" min={min} max={max} step={1} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} />
+);
+
 export function ShapeStep({ m, setShape }) {
   const s = m.shape;
   return (
@@ -481,33 +495,43 @@ export function ShapeStep({ m, setShape }) {
         </div>
       )}
       <div className="feel-grid">
-        <Slider label="Card corner radius" value={s.cardRadius} min={0} max={24} onChange={(v) => setShape({ cardRadius: v })} />
-        <div>
-          <span className="lbl">Button corners <Badge kind={s.prov.radius} /></span>
-          <Segmented
-            value={s.buttonRadius >= 999 ? 'pill' : s.buttonRadius === 0 ? 'square' : 'rounded'}
-            options={[['square', 'Square'], ['rounded', 'Rounded'], ['pill', 'Pill']]}
-            onChange={(v) => setShape({ buttonRadius: v === 'pill' ? 999 : v === 'square' ? 0 : s.buttonRadius > 0 && s.buttonRadius < 999 ? s.buttonRadius : 8 })}
-          />
-          {s.buttonRadius > 0 && s.buttonRadius < 999 && (
-            <div style={{ marginTop: 10 }}><Slider label="Corner size" value={Math.min(s.buttonRadius, 24)} min={1} max={24} onChange={(v) => setShape({ buttonRadius: v })} /></div>
-          )}
-        </div>
-        <Slider label="Border width" value={s.borderWidth} min={0} max={3} onChange={(v) => setShape({ borderWidth: v })} />
-        <Slider label="Bar corner radius" value={s.barRadius} min={0} max={12} onChange={(v) => setShape({ barRadius: v })} />
-        <div>
-          <span className="lbl">Elevation <Badge kind={s.prov.shadow} /></span>
+        <Control label="Card corners" value={`${s.cardRadius}px`} hint="Cards, tiles and panels">
+          <RangeInput value={s.cardRadius} min={0} max={24} onChange={(v) => setShape({ cardRadius: v })} />
+        </Control>
+
+        <Control label="Button corners" badge={<Badge kind={s.prov.radius} />} value={s.buttonRadius >= 999 ? 'Pill' : `${s.buttonRadius}px`}
+          hint={
+            <label className="pill-toggle">
+              <input type="checkbox" checked={s.buttonRadius >= 999} onChange={(e) => setShape({ buttonRadius: e.target.checked ? 999 : 8 })} />
+              Fully rounded (pill-shaped buttons)
+            </label>
+          }>
+          <RangeInput value={Math.min(s.buttonRadius, 24)} min={0} max={24} disabled={s.buttonRadius >= 999} onChange={(v) => setShape({ buttonRadius: v })} />
+        </Control>
+
+        <Control label="Elevation" badge={<Badge kind={s.prov.shadow} />} hint="Shadow under cards">
           <Segmented value={s.shadow} options={[['none', 'Flat'], ['soft', 'Soft'], ['medium', 'Raised']]} onChange={(v) => setShape({ shadow: v })} />
-        </div>
-        <div>
-          <span className="lbl">Density <Badge kind={s.prov.density} /></span>
+        </Control>
+
+        <Control label="Density" badge={<Badge kind={s.prov.density} />} hint="Spacing inside and between cards">
           <Segmented value={s.density} options={[['compact', 'Compact'], ['comfortable', 'Comfortable'], ['spacious', 'Spacious']]} onChange={(v) => setShape({ density: v })} />
-        </div>
-        <div>
-          <span className="lbl">Chart gridlines</span>
+        </Control>
+
+        <Control label="Border width" value={`${s.borderWidth}px`} hint="Outline around cards (0 = none; flat designs get a hairline)">
+          <RangeInput value={s.borderWidth} min={0} max={3} onChange={(v) => setShape({ borderWidth: v })} />
+        </Control>
+
+        <Control label="Bar corners" value={`${s.barRadius}px`} hint="Rounding on the tops of bars">
+          <RangeInput value={s.barRadius} min={0} max={12} onChange={(v) => setShape({ barRadius: v })} />
+        </Control>
+
+        <Control label="Chart gridlines" hint="Lines behind charts">
           <Segmented value={s.gridlines} options={[['minimal', 'Minimal'], ['light', 'Light']]} onChange={(v) => setShape({ gridlines: v })} />
-        </div>
-        <Slider label="Line weight" value={s.lineWidth} min={1} max={4} onChange={(v) => setShape({ lineWidth: v })} />
+        </Control>
+
+        <Control label="Line weight" value={`${s.lineWidth}px`} hint="Thickness of line charts">
+          <RangeInput value={s.lineWidth} min={1} max={4} onChange={(v) => setShape({ lineWidth: v })} />
+        </Control>
       </div>
     </section>
   );
