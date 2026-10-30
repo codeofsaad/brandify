@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { cssStack, loadFont, fontGroups, matchFonts } from './lib/fonts.js';
-import { contrast } from './lib/color.js';
 import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
 import ReferenceDrop from './ReferenceDrop.jsx';
@@ -336,8 +335,6 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
 
       <div className="roles">
         {ROLES.map(([key, label, use]) => {
-          const bg = key === 'text' || key === 'textMuted' || key === 'border' ? m.colors.surface : m.colors.surface;
-          const cr = ['text', 'textMuted', 'primary', 'accent', 'success', 'warning', 'danger'].includes(key) ? contrast(m.colors[key], bg) : null;
           return (
             <div className="role" key={key}>
               <Swatch hex={m.colors[key]} label={label} onChange={(v) => setColor(key, v)} />
@@ -354,7 +351,6 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
               {shots.length > 0 && (
                 <button className={`pick ${picking === key ? 'on' : ''}`} onClick={() => onPick(key)} title="Pick this color from your screenshot">{picking === key ? 'Click it…' : 'Pick'}</button>
               )}
-              {cr != null && <span className={`cr ${cr >= 4.5 ? 'ok' : 'bad'}`} title="Contrast against the surface color">{cr.toFixed(1)}:1</span>}
             </div>
           );
         })}
