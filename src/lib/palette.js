@@ -229,3 +229,14 @@ export function generatePalettes({ brand, harvest, neutrals, accent }) {
     diverging: buildDiverging(anchor, C_t, { accent, pinkAllowed }),
   };
 }
+
+// An accent for a brand that has none: the warm/cool complement of its colour at a calm chroma, never pink.
+// (The old HSL "hue + 150" rule turned light blues into raspberry red.)
+export function deriveAccent(primaryHex) {
+  const p = hexToOklch(primaryHex);
+  if (!isChromatic(p)) return null; // a black-and-white brand keeps its blue default elsewhere
+  let h = norm(p.h + 180);
+  if (inPinkBand(h) && hueGap(p.h, 345) > 60) h = 60; // amber
+  const C = Math.min(0.14, Math.max(0.09, p.C * 0.9));
+  return oklchToHex(h < 62 || h >= 315 ? 0.66 : 0.62, C, h);
+}

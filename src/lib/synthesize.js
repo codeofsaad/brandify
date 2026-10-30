@@ -4,7 +4,7 @@ import {
   parseColor, normalizeHex, hexToHsl, hslHex, mix, ensureContrast, isNeutral, hueDistance, readableOn, contrast,
 } from './color.js';
 import { canonicalGoogleName, firstFamily, isWebAvailable, suggestSubstitute } from './fonts.js';
-import { generatePalettes, hexToOklch } from './palette.js';
+import { generatePalettes, hexToOklch, deriveAccent } from './palette.js';
 
 const px = (v) => (v == null ? NaN : parseFloat(v));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -106,7 +106,7 @@ function pickColors(brand, site) {
   }
   if (!accent) {
     const [h, s, l] = hexToHsl(primary);
-    accent = isNeutral(primary, 0.1) ? '#0176D3' : hslHex((h + 150) % 360, clamp(s, 0.5, 0.75), clamp(l, 0.42, 0.55));
+    accent = isNeutral(primary, 0.1) ? '#0176D3' : deriveAccent(primary) || '#0176D3';
     prov.accent = 'derived';
   }
 
