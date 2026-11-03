@@ -344,7 +344,7 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
         {m.reference && !m.screenshotOnly && m.baseColors && (
           <div className="color-source">
             <span className="lbl">Color source</span>
-            <Segmented value={m.colorSource} options={[['screenshot', 'Your screenshot'], ['website', 'Website']]} onChange={onSetColorSource} />
+            <Segmented value={m.colorSource} options={[['screenshot', 'Your screenshot'], ['website', 'Logo + Website']]} onChange={onSetColorSource} />
             <small>Switching resets the colors to that source. Logo, fonts and shape always come from the website.</small>
           </div>
         )}
