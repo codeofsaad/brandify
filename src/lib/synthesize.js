@@ -412,7 +412,8 @@ export function useWebsiteColors(n) {
   if (!n.baseColors) return;
   n.colors = { ...n.baseColors };
   for (const k of Object.keys(n.baseProv)) n.prov[k] = n.baseProv[k];
-  n.paletteContext = { ...n.paletteContext, reference: [], fromReference: false };
+  // An accent we invented (not a real brand colour) must not steer the chart palette again once the screenshot is gone.
+  n.paletteContext = { ...n.paletteContext, reference: [], fromReference: false, accentIsInvented: n.baseProv.accent === 'derived' || n.baseProv.accent === 'default' };
   n.palettes = derivePalettes(n.colors, n.paletteContext);
   n.monochrome = n.baseMonochrome;
   n.colorSource = 'website';

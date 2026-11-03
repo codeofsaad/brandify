@@ -174,9 +174,25 @@ export default function App() {
       setError(e.message);
     }
   };
-  const removeShotLater = (id) => {
-    setShots((prev) => prev.filter((x) => x.id !== id));
+  // Removing the last screenshot puts the colors back to what the brand and website gave (nothing from the screenshot
+  // stays). Removing one of several re-reads the rest.
+  const removeShotLater = async (id) => {
+    const next = shots.filter((x) => x.id !== id);
+    setShots(next);
     setPicking(null);
+    if (!next.length) {
+      update((n) => {
+        useWebsiteColors(n);
+        n.reference = null;
+      });
+      return;
+    }
+    try {
+      const analysis = await analyzeShots(next);
+      update((n) => applyReferenceToModel(n, analysis));
+    } catch (e) {
+      setError(e.message);
+    }
   };
   const setColorSource = (src) =>
     update((n) => {
