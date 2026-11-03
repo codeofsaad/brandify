@@ -79,7 +79,6 @@ export default function Preview({ m, shots = [], picking = null, onSample, onCan
         <span className="eyebrow">Live preview</span>
         <div className="seg seg-sm">
           <button className={tab === 'app' ? 'on' : ''} onClick={() => setTab('app')}>Data app</button>
-          <button className={tab === 'site' ? 'on' : ''} onClick={() => setTab('site')} disabled={!m.screenshot || m.screenshotSource === 'reference'}>Their website</button>
           {shots.length > 0 && <button className={tab === 'shot' ? 'on' : ''} onClick={() => setTab('shot')}>Your screenshot</button>}
         </div>
       </div>
@@ -104,10 +103,6 @@ export default function Preview({ m, shots = [], picking = null, onSample, onCan
               }}
             />
           ))}
-        </div>
-      ) : tab === 'site' && m.screenshot ? (
-        <div className="site-shot">
-          <img src={m.screenshot} alt={`${m.company.name} website`} />
         </div>
       ) : (
         <div className="pv" style={cssVars(m)}>

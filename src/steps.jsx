@@ -144,11 +144,11 @@ function LoadingCard({ status, progress, onSkip }) {
         <b>Studying {status}…</b>
         <p>{line}{progress?.phase === 'site' ? ` ${siteSecs}s` : ''}</p>
         <p className="loading-note">This can take 1–2 minutes while we read their website, logo and colors. It isn&apos;t stuck.</p>
-        {progress?.phase === 'site' && siteSecs >= 120 && (
+        {progress?.phase === 'site' && siteSecs >= 90 && (
           <p className="slow-hint">
             This site is taking longer than usual.{' '}
             <button className="linkbtn" onClick={onSkip}>Cancel and enter the details manually</button>
-            {' '}(upload a logo or screenshot instead).
+            {' '}(you can upload a logo or screenshot, or type in the colors yourself).
           </p>
         )}
       </div>

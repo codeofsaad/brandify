@@ -124,8 +124,8 @@ async function analyzeSite({ input, domain }) {
     siteError,
     identity,
     icon,
-    screenshot: site?.screenshot ? `${site.screenshot}?v=${Date.now()}` : null,
-    screenshotSource: site?.screenshot ? 'live' : null,
+    screenshot: null,
+    screenshotSource: null,
   };
 }
 

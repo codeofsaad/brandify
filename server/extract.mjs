@@ -18,7 +18,6 @@ function memSnapshot() {
   return `rss=${mb(process.memoryUsage().rss)}${cg}`;
 }
 function makeLog(label) {
-  const t0 = Date.now();
   return (msg) => console.log(`[site ${label}] +${((Date.now() - t0) / 1000).toFixed(1)}s ${msg} (${memSnapshot()})`);
 }
 
@@ -42,11 +41,7 @@ async function launchBrowser(log = () => {}) {
 }
 
 // Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps, and skip the live
-// screenshot (the preview then has no "Their website" tab). Computed styles do not need those resources.
-// In light mode the page still loads its images, so a screenshot can be taken from the same visit (fonts, video and
-// websockets stay blocked). BRANDIFY_SCREENSHOT=0 turns that off if it proves too slow or heavy for a small dyno.
-const IMAGE_WINDOW_MS = 10000;
-const wantsShot = () => process.env.BRANDIFY_SCREENSHOT !== '0';
+// Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps. Computed styles do not need those resources.
 const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
 
 export function siteUrl(input) {
@@ -82,9 +77,7 @@ export async function extractSite(input) {
     // Every request the page makes (including redirects and subresources) must target a public host.
     await ctx.route('**/*', async (route) => {
       try {
-        if (light && ['media', 'font', 'websocket', 'eventsource'].includes(route.request().resourceType())) return route.abort();
-        // Images only matter for the screenshot, so heavy pages get a short window and then stop loading them.
-        if (light && route.request().resourceType() === 'image' && (!wantsShot() || Date.now() - t0 > IMAGE_WINDOW_MS)) return route.abort();
+        if (light && ['image', 'media', 'font', 'websocket', 'eventsource'].includes(route.request().resourceType())) return route.abort();
         const u = new URL(route.request().url());
         if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return route.continue();
         await assertPublicUrl(u.href);
@@ -130,27 +123,11 @@ export async function extractSite(input) {
       return result;
     }
 
-    log(light ? 'measuring styles (light mode)' : 'taking screenshot and measuring styles');
-    let screenshot = null;
-    if (!light) {
-      await page.screenshot({ path: `${dir}home.png` });
-      screenshot = `/out/${domain}/home.png`;
-    }
+    log(light ? 'measuring styles (light mode)' : 'measuring styles');
     const style = await page.evaluate(sampleStyles);
     await fetchViaPage(page, style.identity?.candidates || []);
-    // Light mode takes its picture last, after everything else is safely measured, and gives up quickly: a slow page must
-    // cost at most the screenshot, never the analysis.
-    if (light && wantsShot() && Date.now() - t0 < 40000) {
-      try {
-        await page.screenshot({ path: `${dir}home.jpg`, type: 'jpeg', quality: 60, animations: 'disabled', timeout: 6000 });
-        screenshot = `/out/${domain}/home.jpg`;
-        log('screenshot taken');
-      } catch (e) {
-        log(`screenshot skipped: ${e.message.split('\n')[0]}`);
-      }
-    }
     log('done');
-    const result = { url, domain, status, screenshot, ...style };
+    const result = { url, domain, status, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
     return result;
   } finally {
