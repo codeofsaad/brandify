@@ -18,6 +18,7 @@ function memSnapshot() {
   return `rss=${mb(process.memoryUsage().rss)}${cg}`;
 }
 function makeLog(label) {
+  const t0 = Date.now();
   return (msg) => console.log(`[site ${label}] +${((Date.now() - t0) / 1000).toFixed(1)}s ${msg} (${memSnapshot()})`);
 }
 
@@ -52,7 +53,6 @@ export async function extractSite(input) {
   const url = siteUrl(input);
   const log = makeLog(new URL(url).hostname);
   const light = isLight();
-  const t0 = Date.now();
   log(`start (${light ? 'light' : 'full'} mode)`);
   await assertPublicUrl(url); // refuse localhost / private network targets
   log('url allowed');
