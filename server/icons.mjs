@@ -1,5 +1,5 @@
 // Official brand color and a clean SVG mark from Simple Icons (CC0 data, ~3,400 brands, no account or credits).
-// Used when Brandfetch can't answer. The match must be exact: a wrong brand's color is worse than no color.
+// The match must be exact: a wrong brand's color is worse than no color.
 let index = null; // normalized slug/title -> icon
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');

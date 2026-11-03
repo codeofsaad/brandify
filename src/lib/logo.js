@@ -29,14 +29,6 @@ export function sanitizeSvg(text) {
   return new XMLSerializer().serializeToString(root).replace(/<\?xml[^>]*\?>/, '').replace(/>\s+</g, '><').trim();
 }
 
-const blobToDataUri = (blob) =>
-  new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(fr.result);
-    fr.onerror = () => reject(new Error('read failed'));
-    fr.readAsDataURL(blob);
-  });
-
 function decodeDataUrl(dataUrl) {
   const [head, body = ''] = dataUrl.split(',');
   const isB64 = /;base64/i.test(head);
@@ -54,20 +46,8 @@ export async function fetchLogoAsset(logo) {
       }
       return d.raw.length <= MAX_RASTER * 1.4 ? { kind: 'raster', mime: d.mime, dataUri: d.raw } : { failed: true, reason: 'The uploaded logo is too large to embed.' };
     }
-    for (const url of [logo.url, logo.pngUrl].filter(Boolean)) {
-      const res = await fetch(`/api/logo?url=${encodeURIComponent(url)}`);
-      if (!res.ok) continue;
-      const type = res.headers.get('content-type') || '';
-      if (type.includes('svg')) {
-        const svg = sanitizeSvg(await res.text());
-        if (svg && svg.length <= MAX_SVG) return { kind: 'svg', svg };
-        continue;
-      }
-      const blob = await res.blob();
-      if (blob.size <= MAX_RASTER) return { kind: 'raster', mime: type.split(';')[0], dataUri: await blobToDataUri(blob) };
-    }
   } catch {
     /* fall through */
   }
-  return { failed: true, reason: 'The logo file could not be downloaded.' };
+  return { failed: true, reason: 'The logo file could not be read.' };
 }

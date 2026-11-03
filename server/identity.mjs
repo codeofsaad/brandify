@@ -1,5 +1,5 @@
 // Brand identity taken from a company's own website: name, description and logo files.
-// Used when Brandfetch can't supply them (no credits, unknown brand). Everything downloaded here is fetched by the server,
+// Everything downloaded here is fetched by the server,
 // never by the browser, so every hop goes through the same public-host check as the site analysis.
 import { assertPublicUrl } from './security.mjs';
 
@@ -48,7 +48,7 @@ const sniff = (buf) => {
   return '';
 };
 
-// candidate: { kind: 'logo' | 'symbol', url?, svg? } -> a Brandfetch-shaped logo entry with the file embedded as a data URL.
+// candidate: { kind: 'logo' | 'symbol', url?, svg? } -> a logo entry with the file embedded as a data URL.
 async function download(candidate, domain, i) {
   let type;
   let buf;

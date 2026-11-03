@@ -1,5 +1,5 @@
-// Turns raw Brandfetch data + measured site styles into an editable design model.
-// Every value carries a provenance tag: 'brandfetch' | 'measured' | 'derived' | 'default' | 'edited'.
+// Turns the brand's identity (name, logos, official colour) + measured site styles into an editable design model.
+// Every value carries a provenance tag: 'simpleicons' | 'logo' | 'measured' | 'screenshot' | 'derived' | 'default' | 'edited'.
 import {
   parseColor, normalizeHex, hexToHsl, hslHex, mix, ensureContrast, isNeutral, hueDistance, readableOn, contrast,
 } from './color.js';
@@ -63,8 +63,8 @@ export function derivePalettes(colors, ctx = {}) {
   });
 }
 
-// True when Brandfetch lists at least one real (not grey) brand/primary/accent colour.
-export function brandfetchHasColor(brand) {
+// True when the brand has at least one real (not grey) brand/primary/accent colour.
+export function brandHasColor(brand) {
   return (brand.colors || []).some((c) => {
     if (!['brand', 'primary', 'accent'].includes(c.type)) return false;
     const hex = normalizeHex(c.hex);
@@ -77,14 +77,14 @@ export function brandfetchHasColor(brand) {
 function pickColors(brand, site, logoColors = []) {
   const bf = (type) => normalizeHex((brand.colors || []).find((c) => c.type === type)?.hex);
   const bfAll = (brand.colors || []).map((c) => ({ hex: normalizeHex(c.hex), type: c.type, source: c.source })).filter((c) => c.hex);
-  // Where a brand colour came from: Brandfetch, or another official source such as Simple Icons.
-  const bfSource = (hex) => bfAll.find((c) => c.hex === hex)?.source || 'brandfetch';
+  // Where a brand colour came from: an official source such as Simple Icons, or the user.
+  const bfSource = (hex) => bfAll.find((c) => c.hex === hex)?.source || 'edited';
   const bfBrand = bf('brand') || bf('primary');
   const bfAccent = bf('accent');
   const bfDark = bf('dark');
   const bfLight = bf('light');
 
-  // Brandfetch sometimes lists a pale gray as the "accent" of a black-and-white brand. Only trust real colors.
+  // A pale gray listed as the "accent" of a black-and-white brand is not a colour. Only trust real colors.
   const realColor = (c) => {
     if (!c) return null;
     const [, sat, light] = hexToHsl(c);
@@ -94,7 +94,7 @@ function pickColors(brand, site, logoColors = []) {
   const accentUse = realColor(bfAccent);
 
   const stats = site ? chromaticStats(site) : { ranked: [], share: 0 };
-  // Brandfetch's own brand colours come first. A brand with a real brand/primary colour is never "monochrome";
+  // The brand's own colours come first. A brand with a real brand/primary colour is never "monochrome";
   // otherwise the website decides whether the design is essentially black and white.
   const logoUse = (logoColors || []).filter((c) => realColor(c));
   const monochrome = brandUse ? false : !brandUse && !accentUse && logoUse.length ? false : site ? stats.share < 0.08 : !(brandUse || accentUse);
@@ -104,13 +104,13 @@ function pickColors(brand, site, logoColors = []) {
   let primary, accent;
   if (monochrome) {
     primary = bfDark || '#111111';
-    prov.primary = bfDark ? 'brandfetch' : 'default';
+    prov.primary = bfDark ? bfSource(bfDark) : 'default';
     accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || null;
     prov.accent = accent ? (accentUse || brandUse ? bfSource(accent) : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {
     const measured = stats.ranked[0]?.hex;
     const bfOrder = [...new Set([brandUse, accentUse, ...bfAll.filter((c) => ['brand', 'primary'].includes(c.type) && realColor(c.hex)).map((c) => c.hex)].filter(Boolean))];
-    // Order of trust: Brandfetch (or Simple Icons when Brandfetch is unavailable), then the logo itself, then whatever the website happens to use.
+    // Order of trust: the official brand colour (Simple Icons), then the logo itself, then whatever the website happens to use.
     const ordered = [...bfOrder, ...logoUse.filter((c) => !bfOrder.includes(c))];
     const sourceOf = (c) => (bfOrder.includes(c) ? bfSource(c) : logoUse.includes(c) ? 'logo' : 'measured');
     primary = ordered[0] || measured;
@@ -140,7 +140,7 @@ function pickColors(brand, site, logoColors = []) {
 
   const measuredText = (site?.colors?.text || []).map((t) => normalizeHex(t.value)).find((h) => h && isNeutral(h, 0.2) && contrast(h, '#FFFFFF') > 7);
   const text = measuredText && measuredText !== '#000000' ? measuredText : bfDark && bfDark !== '#000000' ? bfDark : measuredText || '#1B1B1B';
-  prov.text = measuredText ? 'measured' : bfDark ? 'brandfetch' : 'default';
+  prov.text = measuredText ? 'measured' : bfDark ? bfSource(bfDark) : 'default';
   const textMuted = ensureContrast(mix(text, surface, 0.4), surface, 4.5);
   prov.textMuted = 'derived';
   const border = mix(text, surface, monochrome ? 0.78 : 0.86);
@@ -171,7 +171,7 @@ function pickTypography(brand, site, monochrome) {
     const brandName = bf?.name || measuredName || null;
     const candidates = [
       measuredName && { name: measuredName, source: 'measured' },
-      bf && { name: bf.name, source: 'brandfetch' },
+      bf && { name: bf.name, source: 'brand' },
     ].filter(Boolean);
     const web = candidates.find((c) => isWebAvailable(c.name));
     if (web) {
@@ -292,7 +292,7 @@ function pickLogo(logos) {
 
 // ---------- entry point ----------
 
-// A customer screenshot is their real app, so the colours read from it outrank the website's and Brandfetch's.
+// A customer screenshot is their real app, so the colours read from it outrank the website's and the brand's.
 function applyReference(colors, prov, a) {
   if (a.primary) { colors.primary = a.primary; prov.primary = 'screenshot'; }
   if (a.accent) { colors.accent = a.accent; prov.accent = 'screenshot'; }
@@ -303,10 +303,10 @@ function applyReference(colors, prov, a) {
   colors.border = mix(a.text, a.surface, a.theme === 'dark' ? 0.78 : 0.86); prov.border = 'derived';
 }
 
-export function synthesize({ brand, site, demo, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false, logoColors = [] }) {
+export function synthesize({ brand, site, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false, logoColors = [] }) {
   const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site, logoColors);
   const analysis = reference?.analysis || null;
-  const baseColors = { ...colors }; // what the website and Brandfetch said, kept so the user can switch back
+  const baseColors = { ...colors }; // what the brand and website said, kept so the user can switch back
   const baseProv = { ...prov };
   if (analysis) applyReference(colors, prov, analysis);
   const monochrome = analysis ? !analysis.primary : baseMono;
@@ -322,7 +322,6 @@ export function synthesize({ brand, site, demo, screenshot = null, screenshotSou
   const shape = pickShape(site, monochrome);
   const logos = collectLogos(brand);
   const notes = [];
-  if (demo) notes.push('Brandfetch data is from built-in demo fixtures (no API key set).');
   if (!site && !screenshotOnly) {
     notes.push(
       siteError
@@ -399,7 +398,7 @@ export function applyReferenceToModel(n, analysis) {
 }
 
 
-// Switch the colours back to what the website and Brandfetch said (the screenshot stays attached for reference).
+// Switch the colours back to what the brand and website said (the screenshot stays attached for reference).
 export function useWebsiteColors(n) {
   if (!n.baseColors) return;
   n.colors = { ...n.baseColors };

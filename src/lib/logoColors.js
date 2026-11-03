@@ -1,4 +1,4 @@
-// When Brandfetch lists no real brand colour, the logo itself is the next best statement of the brand's colour.
+// When Simple Icons has no official colour for the brand, the logo itself is the next best statement of the brand's colour.
 // The logo is rendered in the browser and its colours read the same way as a screenshot's (area-weighted, anti-aliasing removed).
 import { fetchLogoAsset } from './logo.js';
 import { analyzeShots } from './screenshot.js';

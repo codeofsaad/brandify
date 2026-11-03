@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
-import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors, brandfetchHasColor, collectLogos } from './lib/synthesize.js';
+import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors, brandHasColor, collectLogos } from './lib/synthesize.js';
 import { colorsFromLogos } from './lib/logoColors.js';
 import { analyzeShots, sampleColor } from './lib/screenshot.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
@@ -9,7 +9,7 @@ import { fetchLogoAsset } from './lib/logo.js';
 import { loadFont, ensureCatalog } from './lib/fonts.js';
 import { fetchJson, analyzeSite } from './lib/api.js';
 
-const TABLEAU_SYMBOL = 'https://cdn.brandfetch.io/id9sYMA_Im/theme/light/symbol.svg?c=1bxn5168vgovn2t5jgb34j594duYhJreifV';
+import TABLEAU_SYMBOL from './assets/tableau-symbol.svg';
 
 const STEPS = [
   ['Company', 'Pick who to brand'],
@@ -96,47 +96,37 @@ export default function App() {
     setProgress({ phase: 'brand', startedAt: Date.now() });
     try {
       const domain = input.includes('.') ? input : guessDomain(input);
-      // 1) brand identity (fast)  2) website analysis (slow, runs as a background job you can skip)
+      // 1) the company's name and domain (instant)  2) website analysis (slow, runs as a background job you can cancel)
       const data = await fetchJson('/api/brand', { domain });
-      const fallback = data.fallback || null; // Brandfetch could not answer: the website supplies the name and logo
       setProgress({ phase: 'site', startedAt: Date.now(), status: 'queued', ahead: 0 });
-      let siteData = await analyzeSite(
-        { domain: data.brand.domain || domain, screenshotUrl: data.brand.screenshot?.url, identity: Boolean(fallback) },
+      const siteData = await analyzeSite(
+        { domain: data.brand.domain || domain },
         { signal: ctrl.signal, onProgress: (p) => setProgress((prev) => ({ ...prev, ...p })) },
       );
-      if (ctrl.signal.aborted) {
-        // Skipped: continue with Brandfetch data; its saved screenshot can be shown straight from the CDN.
-        const shot = data.brand.screenshot?.url || null;
-        siteData = { site: null, siteError: 'You skipped the website analysis', screenshot: shot, screenshotSource: shot ? 'brandfetch' : null };
+      // The website supplies the name, description and logos; Simple Icons the official brand colour and a clean mark.
+      const found = siteData.identity;
+      const icon = siteData.icon || data.icon || null;
+      if (!found?.logos?.length && !siteData.site && !icon) {
+        throw new Error(`${ctrl.signal.aborted ? 'Cancelled.' : `The company website could not be read (${siteData.siteError || 'no response'}).`} Upload a logo or screenshot, or enter the details manually.`);
       }
-      if (fallback) {
-        const found = siteData.identity;
-        if (!found?.logos?.length && !siteData.site && !(siteData.icon || data.icon)) {
-          throw new Error(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} The company website could not be read either (${siteData.siteError || 'no response'}). Upload a logo or screenshot, or enter the details manually.`);
-        }
-        // Simple Icons supplies the official brand colour and a clean mark; the website's own logos stay first.
-        const icon = siteData.icon || data.icon || null;
-        const siteLogos = found?.logos || [];
-        const mark = icon && { type: 'symbol', theme: 'dark', formats: [{ format: 'svg', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(icon.svg)}` }], uploaded: false, fileName: `${icon.slug}-mark.svg` };
-        data.icon = icon;
-        data.brand = {
-          ...data.brand,
-          name: cleanSiteName(found?.name) || data.brand.name,
-          description: found?.description || '',
-          colors: icon ? [{ hex: icon.hex, type: 'brand', source: 'simpleicons' }] : [],
-          logos: [...siteLogos.filter((l) => l.type === 'logo'), ...(mark ? [mark] : []), ...siteLogos.filter((l) => l.type !== 'logo')],
-        };
-      }
+      const siteLogos = found?.logos || [];
+      const mark = icon && { type: 'symbol', theme: 'dark', formats: [{ format: 'svg', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(icon.svg)}` }], uploaded: false, fileName: `${icon.slug}-mark.svg` };
+      const brand = {
+        ...data.brand,
+        name: cleanSiteName(found?.name) || data.brand.name,
+        description: found?.description || '',
+        colors: icon ? [{ hex: icon.hex, type: 'brand', source: 'simpleicons' }] : [],
+        logos: [...siteLogos.filter((l) => l.type === 'logo'), ...(mark ? [mark] : []), ...siteLogos.filter((l) => l.type !== 'logo')],
+      };
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
-      // Brandfetch has no real brand colour? Read the logo before falling back to the website.
-      const logoColors = brandfetchHasColor(data.brand) ? [] : await colorsFromLogos(collectLogos(data.brand));
-      const model = synthesize({ brand: data.brand, demo: data.demo, reference, logoColors, ...siteData });
-      if (fallback) {
-        model.fromWebsite = true;
-        const where = data.icon ? `The brand color is the official one from Simple Icons${data.icon.title !== data.brand.name ? ` (matched to "${data.icon.title}")` : ''}; the name and logo were read from the company's website` : `The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''}`;
-        model.notes.unshift(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} ${where}, so check them carefully.`);
-      }
+      // No official colour? Read the logo itself before falling back to the website. (An official black or white means the
+      // brand really is monochrome, so the logo isn't second-guessed.)
+      const logoColors = icon ? [] : await colorsFromLogos(collectLogos(brand));
+      const model = synthesize({ brand, reference, logoColors, ...siteData });
+      model.fromWebsite = true;
+      if (icon) model.notes.unshift(`The brand color is the official one from Simple Icons${icon.title !== brand.name ? ` (matched to "${icon.title}")` : ''}; the name and logo were read from the company's website. Check them carefully.`);
+      else model.notes.unshift(`The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''}, so check them carefully.`);
       setM(withDetected(model));
       setGeneratedMd(null);
       setStep(1);
@@ -160,7 +150,7 @@ export default function App() {
       const brand = { name: name.trim(), domain: slug, description: '', colors: [], fonts: [], logos: [] };
       const reference = { analysis: await analyzeShots(shots) };
       await ensureCatalog();
-      setM(withDetected(synthesize({ brand, demo: false, reference, screenshotOnly: true, screenshot: shots[0]?.dataUrl || null, screenshotSource: 'reference' })));
+      setM(withDetected(synthesize({ brand, reference, screenshotOnly: true, screenshot: shots[0]?.dataUrl || null, screenshotSource: 'reference' })));
       setGeneratedMd(null);
       setStep(1);
     } catch (e) {
@@ -215,7 +205,7 @@ export default function App() {
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
       const logoColors = !primary && logo ? await colorsFromLogos(collectLogos(brand)) : [];
-      const model = synthesize({ brand, demo: false, reference, logoColors, ...siteData });
+      const model = synthesize({ brand, reference, logoColors, ...siteData });
       if (primary) model.prov.primary = 'edited';
       model.notes.unshift('Entered manually; some values may be defaults.');
       setM(withDetected(model));
@@ -417,14 +407,6 @@ export default function App() {
     </div>
   );
 }
-
-const FALLBACK_WHY = {
-  no_credits: 'Brandfetch has no API credits left.',
-  not_found: 'Brandfetch has no brand data for this company.',
-  rate_limited: 'Brandfetch is rate limiting requests.',
-  no_key: 'Brandfetch is not set up.',
-  unavailable: 'Brandfetch could not be reached.',
-};
 
 // "Dunkin'®" -> "Dunkin'", "Nike.com" -> "Nike"
 const cleanSiteName = (n) => String(n || '').replace(/[®™©]/g, '').replace(/\.(com|net|org|io|co)$/i, '').trim().slice(0, 60);

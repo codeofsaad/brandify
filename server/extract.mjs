@@ -41,7 +41,7 @@ async function launchBrowser(log = () => {}) {
 }
 
 // Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps, and skip the live
-// screenshot (Brandfetch's saved screenshot is used instead). Computed styles do not need those resources.
+// screenshot (the preview then has no "Their website" tab). Computed styles do not need those resources.
 const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
 
 export function siteUrl(input) {
@@ -241,20 +241,28 @@ export function sampleStyles() {
     };
   }
 
-  // The company's name, description and logo candidates as the page presents them (used when Brandfetch is unavailable).
+  // The company's name, description and logo candidates as the page presents them.
   const identity = (() => {
     const meta = (sel) => document.querySelector(sel)?.getAttribute('content')?.trim() || '';
     const abs = (u) => { try { return new URL(u, location.href).href; } catch { return null; } };
-    const candidates = [];
+    const found = []; // { cand, home, ratio }: where each logo candidate sits, so the real logo can be put first
     const nearTop = (el) => el.getBoundingClientRect().top + window.scrollY < 300;
+    // Menu buttons, search and social icons are not logos.
+    const isControl = (el) => Boolean(el.closest('button, [role=button], [aria-expanded], [aria-haspopup], input, form'));
+    const linksHome = (el) => {
+      const href = el.closest('a')?.getAttribute('href');
+      if (!href) return false;
+      try { const u = new URL(href, location.href); return u.origin === location.origin && (u.pathname === '/' || u.pathname.length <= 4); } catch { return false; }
+    };
     for (const img of document.querySelectorAll('header img, [role=banner] img, nav img, a[href="/"] img, [class*=logo i] img, img[class*=logo i], img[alt*=logo i], img[src*=logo i]')) {
-      if (candidates.length >= 4 || !nearTop(img)) continue;
+      if (found.length >= 8 || !nearTop(img) || isControl(img)) continue;
       const url = img.currentSrc || img.src;
-      if (url && !/^data:image\/gif/.test(url)) candidates.push({ kind: 'logo', url: url.startsWith('data:') ? url : abs(url) });
+      const r = img.getBoundingClientRect();
+      if (url && !/^data:image\/gif/.test(url)) found.push({ cand: { kind: 'logo', url: url.startsWith('data:') ? url : abs(url) }, home: linksHome(img), ratio: r.height ? r.width / r.height : 1 });
     }
     // Inline SVG logos draw with CSS colours (including currentColor), so write the final colours into the copy we keep.
     for (const svg of document.querySelectorAll('header svg, [role=banner] svg, nav svg, a[href="/"] svg, [class*=logo i] svg, svg[class*=logo i], svg[aria-label*=logo i]')) {
-      if (candidates.length >= 6 || !nearTop(svg)) continue;
+      if (found.length >= 12 || !nearTop(svg) || isControl(svg)) continue;
       const r = svg.getBoundingClientRect();
       if (r.width < 40 || r.height < 12 || r.width > 600 || svg.querySelector('use[href^="http"], image')) continue;
       const clone = svg.cloneNode(true);
@@ -271,8 +279,14 @@ export function sampleStyles() {
       clone.removeAttribute('class');
       clone.setAttribute('width', String(Math.round(r.width)));
       clone.setAttribute('height', String(Math.round(r.height)));
-      candidates.push({ kind: 'logo', svg: clone.outerHTML });
+      found.push({ cand: { kind: 'logo', svg: clone.outerHTML }, home: linksHome(svg), ratio: r.width / r.height });
     }
+    // The logo links to the home page, and a wordmark (wide) says more about the brand than a small mark does.
+    const candidates = found
+      .map((f, i) => ({ ...f, i }))
+      .sort((x, y) => (y.home - x.home) || ((y.ratio >= 2.2) - (x.ratio >= 2.2)) || x.i - y.i)
+      .slice(0, 4)
+      .map((f) => f.cand);
     const icons = [...document.querySelectorAll('link[rel~="apple-touch-icon"]')].concat([...document.querySelectorAll('link[rel~="icon"]')]);
     for (const l of icons.slice(0, 3)) {
       const url = l.getAttribute('href') && abs(l.getAttribute('href'));

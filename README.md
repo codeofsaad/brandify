@@ -1,17 +1,23 @@
 # Brandify
 
 Generates a `design.md` brand guide for Tableau Data Apps. Enter a company; Brandify pulls its logo, colors and fonts
-(Brandfetch), measures how its website is actually styled (headless Chromium), lets you edit everything, and exports a
+from its own website and Simple Icons, measures how that website is actually styled (headless Chromium), lets you edit everything, and exports a
 `design.md` that Claude uses to style a data app in that brand's look and feel.
 
-## When Brandfetch is unavailable
+## Where the brand data comes from
 
-If Brandfetch can't answer (no credits, unknown brand, outage), Brandify still works. It reads the company's name,
-description and logos from the website itself, takes the official brand color and a clean mark from
-[Simple Icons](https://simpleicons.org) when the company is listed there (exact name or domain match only), and otherwise
-reads colors from the logo and then the website. Every value is labelled with where it came from. After Brandfetch
-reports `no_api_credits`, the server stops calling it for an hour (restart to retry sooner); set `BRANDFETCH_DISABLED=1`
-to skip it entirely. Name suggestions as you type use the free Brandfetch search with `BRANDFETCH_CLIENT_ID`.
+Brandify no longer uses Brandfetch's paid Brand API (its credits ran out and don't renew).
+
+- **Name, description, logos:** read from the company's own website (header logo, inline SVG logo, Apple touch icon,
+  favicon). A site that blocks automated browsers is read over plain HTTP instead.
+- **Official brand color and a clean logo mark:** [Simple Icons](https://simpleicons.org) (CC0 data), matched on the exact
+  domain or site name only, so a wrong brand's color is never used. Brands that aren't listed fall through to the next step.
+- **Colors otherwise:** read from the logo, then from the website.
+- **Look and feel** (corners, shadows, spacing, fonts): measured on the website with headless Chromium.
+- **Anything else:** upload a logo or screenshot, or enter the details manually.
+
+Every value is labelled with where it came from. The only remaining Brandfetch use is its free search, which turns a typed
+company name into a domain (`BRANDFETCH_CLIENT_ID`); without it, type the domain.
 
 ## Run locally
 
@@ -24,7 +30,6 @@ npm run dev              # http://localhost:5173
 
 | Variable | Needed for |
 |---|---|
-| `BRANDFETCH_API_KEY` | Pulling brand data (required for companies outside the 3 built-in demos) |
 | `BRANDFETCH_CLIENT_ID` | Company name search suggestions (optional; without it, type a domain) |
 | `BRANDIFY_PASSWORD` | Shared password for the whole app (production without SSO) |
 | `BRANDIFY_AUTH=sso` | Production only: skip the password because the platform already authenticates users |
@@ -43,7 +48,7 @@ heroku apps:create <app-name> --space se-amer-reg-internal --team se-amer-reg
 heroku apps:lock --app <app-name>
 
 # Secrets: type them yourself, never commit them
-heroku config:set BRANDFETCH_API_KEY=... BRANDFETCH_CLIENT_ID=... BRANDIFY_AUTH=sso --app <app-name>
+heroku config:set BRANDFETCH_CLIENT_ID=... BRANDIFY_AUTH=sso --app <app-name>
 
 heroku git:remote --app <app-name>
 git push heroku main              # builds with the Node buildpack (runs `npm run build`)
@@ -73,7 +78,7 @@ Open the app at the `*.herokuapp-internal.com` URL (the plain `.herokuapp.com` U
 ## Project layout
 
 ```
-server/        Express API: Brandfetch pull, website analysis (Playwright), optional Claude analysis, security
+server/        Express API: website identity and analysis (Playwright), optional Claude analysis, security
 src/lib/       Color math, synthesis (raw data -> design model), design.md renderer, font helpers
 src/           React UI (wizard, live preview)
 scripts/       CLI helpers for testing extraction and rendering

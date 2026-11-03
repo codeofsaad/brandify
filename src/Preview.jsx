@@ -107,7 +107,6 @@ export default function Preview({ m, shots = [], picking = null, onSample, onCan
         </div>
       ) : tab === 'site' && m.screenshot ? (
         <div className="site-shot">
-          {m.screenshotSource === 'brandfetch' && <div className="shot-note">This is Brandfetch’s saved screenshot of the website.</div>}
           <img src={m.screenshot} alt={`${m.company.name} website`} />
         </div>
       ) : (

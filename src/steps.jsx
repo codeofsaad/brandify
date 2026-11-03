@@ -4,7 +4,7 @@ import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
 import ReferenceDrop from './ReferenceDrop.jsx';
 
-const PROV_LABEL = { brandfetch: 'Brandfetch', simpleicons: 'Simple Icons', measured: 'Measured on site', screenshot: 'Screenshot', logo: 'From logo', derived: 'Derived', default: 'Default', edited: 'Edited' };
+const PROV_LABEL = { simpleicons: 'Simple Icons', measured: 'Measured on site', screenshot: 'Screenshot', logo: 'From logo', derived: 'Derived', default: 'Default', edited: 'Edited' };
 export const Badge = ({ kind }) => (kind ? <span className={`badge badge-${kind}`}>{PROV_LABEL[kind] || kind}</span> : null);
 
 function StepHead({ n, title, children, extra }) {
@@ -146,8 +146,8 @@ function LoadingCard({ status, progress, onSkip }) {
         {progress?.phase === 'site' && siteSecs >= 60 && (
           <p className="slow-hint">
             This site is taking longer than usual.{' '}
-            <button className="linkbtn" onClick={onSkip}>Skip the website analysis and continue</button>
-            {' '}(you'll still get the logo, colors and fonts from Brandfetch).
+            <button className="linkbtn" onClick={onSkip}>Cancel and enter the details manually</button>
+            {' '}(upload a logo or screenshot instead).
           </p>
         )}
       </div>
@@ -245,7 +245,7 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
                 <li key={r.domain}>
                   <button onClick={() => choose(r)}>
                     {r.icon ? <img src={r.icon} alt="" /> : <span className="ph" />}
-                    <span><b>{r.name}</b><small>{r.domain}{r.demo ? ' · demo data' : ''}</small></span>
+                    <span><b>{r.name}</b><small>{r.domain}</small></span>
                   </button>
                 </li>
               ))}
@@ -343,8 +343,8 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
         {m.reference && !m.screenshotOnly && m.baseColors && (
           <div className="color-source">
             <span className="lbl">Color source</span>
-            <Segmented value={m.colorSource} options={[['screenshot', 'Your screenshot'], ['website', 'Website + Brandfetch']]} onChange={onSetColorSource} />
-            <small>Switching resets the colors to that source. Logo, fonts and shape always come from the website and Brandfetch.</small>
+            <Segmented value={m.colorSource} options={[['screenshot', 'Your screenshot'], ['website', 'Website']]} onChange={onSetColorSource} />
+            <small>Switching resets the colors to that source. Logo, fonts and shape always come from the website.</small>
           </div>
         )}
         {shots.length > 0 && <p className="dz-note">Use <b>Pick</b> on any color below, then click that color in the screenshot (right panel).</p>}
@@ -381,7 +381,7 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
               <i style={{ background: a.hex }} /> {a.hex}
             </button>
           ))}
-          <small>{m.prov.primary === 'logo' ? 'The color read from the logo is used by default.' : m.prov.primary === 'simpleicons' ? "The official brand color from Simple Icons is used by default." : "Brandfetch's brand color is used by default."}</small>
+          <small>{m.prov.primary === 'logo' ? 'The color read from the logo is used by default.' : m.prov.primary === 'simpleicons' ? "The official brand color from Simple Icons is used by default." : 'The brand color is used by default.'}</small>
         </div>
       )}
 
