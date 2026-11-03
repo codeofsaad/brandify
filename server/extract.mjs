@@ -39,7 +39,7 @@ async function launchBrowser(log = () => {}) {
   // Containers usually can't use Chromium's user-namespace sandbox.
   return chromium.launch({ args: hosted ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
 }
-// Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps, and skip the live
+
 // Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps. Computed styles do not need those resources.
 const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
 
