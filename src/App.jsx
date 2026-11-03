@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Preview from './Preview.jsx';
 import { CompanyStep, ColorsStep, TypographyStep, ShapeStep, LogoStep, ReviewStep } from './steps.jsx';
 import { synthesize, withDetected, derivePalettes, applyReferenceToModel, useWebsiteColors, brandHasColor, collectLogos } from './lib/synthesize.js';
-import { colorsFromLogos } from './lib/logoColors.js';
+import { colorsFromLogos, readLogo } from './lib/logoColors.js';
 import { analyzeShots, sampleColor } from './lib/screenshot.js';
 import { renderDesignMd, selectedLogo } from './lib/render.js';
 import { fetchLogoAsset } from './lib/logo.js';
@@ -122,8 +122,8 @@ export default function App() {
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
       // The website's own logo supplies the primary when there is no official colour, and the accent either way.
-      const logoColors = await colorsFromLogos(collectLogos({ logos: siteLogos }));
-      const model = synthesize({ brand, reference, logoColors, ...siteData });
+      const { colors: logoColors, ink: logoInk } = await readLogo(collectLogos({ logos: siteLogos }));
+      const model = synthesize({ brand, reference, logoColors, logoInk, ...siteData });
       model.fromWebsite = true;
       if (!siteData.site && !siteLogos.length && !icon) model.notes.unshift("Neither the website nor Simple Icons had anything for this company, so the colors, logo and fonts are defaults. Upload a logo or a screenshot of their app on the Colors and Logo steps, or edit the values by hand.");
       else if (usedSearchIcon && !icon) model.notes.unshift("The website blocked automatic reading, so the logo is the small icon from the company search and the colors are read from it. Check them carefully.");

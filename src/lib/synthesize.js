@@ -74,7 +74,7 @@ export function brandHasColor(brand) {
   });
 }
 
-function pickColors(brand, site, logoColors = []) {
+function pickColors(brand, site, logoColors = [], logoInk = null) {
   const bf = (type) => normalizeHex((brand.colors || []).find((c) => c.type === type)?.hex);
   const bfAll = (brand.colors || []).map((c) => ({ hex: normalizeHex(c.hex), type: c.type, source: c.source })).filter((c) => c.hex);
   // Where a brand colour came from: an official source such as Simple Icons, or the user.
@@ -108,8 +108,9 @@ function pickColors(brand, site, logoColors = []) {
     // A black-and-white brand's primary is its official black (or the default near-black when none is known).
     const official = officialNeutral ? bfAll.find((c) => c.source === 'simpleicons')?.hex : null;
     const officialNeutralHex = official && hexToHsl(official)[2] < 0.5 ? official : null; // a white logo colour can't be a primary
-    primary = bfDark || officialNeutralHex || '#111111';
-    prov.primary = bfDark || officialNeutralHex ? bfSource(bfDark || officialNeutralHex) : 'default';
+    // Order: an official colour, then the logo's own ink (even grey: it is the brand's colour), and only then the default.
+    primary = bfDark || officialNeutralHex || logoInk || '#111111';
+    prov.primary = bfDark || officialNeutralHex ? bfSource(bfDark || officialNeutralHex) : logoInk ? 'logo' : 'default';
     accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || harvestFromSite(site)[0]?.hex || null;
     prov.accent = accent ? (accentUse || brandUse ? bfSource(accent) : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {
@@ -118,8 +119,9 @@ function pickColors(brand, site, logoColors = []) {
     // Order of trust: the official brand colour (Simple Icons), then the logo itself, then whatever the website happens to use.
     const ordered = [...bfOrder, ...logoUse.filter((c) => !bfOrder.includes(c))];
     const sourceOf = (c) => (bfOrder.includes(c) ? bfSource(c) : logoUse.includes(c) ? 'logo' : 'measured');
-    primary = ordered[0] || measured;
-    prov.primary = ordered[0] ? sourceOf(ordered[0]) : 'measured';
+    // Colour from the brand or its logo, then the website's own colour, then the logo's grey ink.
+    primary = ordered[0] || measured || logoInk;
+    prov.primary = ordered[0] ? sourceOf(ordered[0]) : measured ? 'measured' : logoInk ? 'logo' : 'measured';
     if (ordered[0] && measured && deltaE(ordered[0], measured) > 0.06) alternatives.primary.push({ hex: measured, source: 'measured' });
     const usable = (c) => {
       const [h, sat, l] = hexToHsl(c);
@@ -310,8 +312,8 @@ function applyReference(colors, prov, a) {
   colors.border = mix(a.text, a.surface, a.theme === 'dark' ? 0.78 : 0.86); prov.border = 'derived';
 }
 
-export function synthesize({ brand, site, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false, logoColors = [] }) {
-  const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site, logoColors);
+export function synthesize({ brand, site, screenshot = null, screenshotSource = null, siteError = null, reference = null, screenshotOnly = false, logoColors = [], logoInk = null }) {
+  const { colors, prov, alternatives, monochrome: baseMono, bfAll } = pickColors(brand, site, logoColors, logoInk);
   const analysis = reference?.analysis || null;
   const baseColors = { ...colors }; // what the brand and website said, kept so the user can switch back
   const baseProv = { ...prov };
