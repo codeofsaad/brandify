@@ -83,10 +83,18 @@ const BRAND_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const BRAND_CACHE_MAX = 300;
 const brandCache = new Map(); // domain -> { brand, at }
 
+// Once Brandfetch says the credits are gone, stop asking for a while: every pull would just fail first. Retried hourly,
+// and a restart (for example after swapping in a new key) clears it. BRANDFETCH_DISABLED=1 skips Brandfetch entirely.
+const CREDITS_RETRY_MS = 60 * 60 * 1000;
+let creditsOutUntil = process.env.BRANDFETCH_DISABLED === '1' ? Infinity : 0;
+const noCredits = () => Object.assign(new Error('Brandfetch has no API credits left, so the name, logo and colors are read from the company website instead.'), { status: 503, code: 'no_credits' });
+
 async function brandfetchError(r, domain) {
   const body = await r.json().catch(() => ({}));
   if (body.error === 'no_api_credits') {
-    return Object.assign(new Error('Brandfetch has no API credits left, so brand data cannot be pulled for new companies right now. Ask the Brandify owner to top up the Brandfetch account. Companies pulled recently still work.'), { status: 503, code: 'no_credits' });
+    creditsOutUntil = Date.now() + CREDITS_RETRY_MS;
+    console.log('Brandfetch reports no API credits; using the website fallback for the next hour');
+    return noCredits();
   }
   if (r.status === 404) return Object.assign(new Error(`Brandfetch has no brand data for ${domain}. Check the spelling, or upload a screenshot or logo instead.`), { status: 404, code: 'not_found' });
   if (r.status === 429) return Object.assign(new Error('Brandfetch is rate limiting requests. Wait a minute and try again.'), { status: 429, code: 'rate_limited' });
@@ -96,7 +104,8 @@ async function brandfetchError(r, domain) {
 async function fetchBrand(domain) {
   const hit = brandCache.get(domain);
   if (hit && Date.now() - hit.at < BRAND_TTL_MS) return { brand: hit.brand, demo: false };
-  if (API_KEY) {
+  if (API_KEY && Date.now() < creditsOutUntil && !fixtures[domain]) throw noCredits();
+  if (API_KEY && Date.now() >= creditsOutUntil) {
     const r = await fetch(`https://api.brandfetch.io/v2/brands/${domain}`, { headers: { Authorization: `Bearer ${API_KEY}` } });
     if (r.ok) {
       const brand = await r.json();

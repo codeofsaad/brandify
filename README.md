@@ -4,6 +4,15 @@ Generates a `design.md` brand guide for Tableau Data Apps. Enter a company; Bran
 (Brandfetch), measures how its website is actually styled (headless Chromium), lets you edit everything, and exports a
 `design.md` that Claude uses to style a data app in that brand's look and feel.
 
+## When Brandfetch is unavailable
+
+If Brandfetch can't answer (no credits, unknown brand, outage), Brandify still works. It reads the company's name,
+description and logos from the website itself, takes the official brand color and a clean mark from
+[Simple Icons](https://simpleicons.org) when the company is listed there (exact name or domain match only), and otherwise
+reads colors from the logo and then the website. Every value is labelled with where it came from. After Brandfetch
+reports `no_api_credits`, the server stops calling it for an hour (restart to retry sooner); set `BRANDFETCH_DISABLED=1`
+to skip it entirely. Name suggestions as you type use the free Brandfetch search with `BRANDFETCH_CLIENT_ID`.
+
 ## Run locally
 
 ```bash
