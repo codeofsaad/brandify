@@ -32,7 +32,9 @@ const rank = (l) => (l.kind === 'logo' ? 0 : l.kind === 'symbol' ? 1 : 2) * 2 + 
  * @returns {Promise<string[]>} up to 3 brand colours (hex), most prominent first; [] if the logo is black/white/grey
  */
 export async function colorsFromLogos(logos = []) {
-  for (const logo of [...logos].sort((a, b) => rank(a) - rank(b)).slice(0, 4)) {
+  // The logo on the page is the brand's statement; small site icons (favicons, app icons) only if there is nothing else.
+  const pool = logos.some((l) => l.kind === 'logo') ? logos.filter((l) => l.kind === 'logo') : logos;
+  for (const logo of [...pool].sort((a, b) => rank(a) - rank(b)).slice(0, 4)) {
     try {
       const asset = await fetchLogoAsset(logo);
       if (asset.failed) continue;

@@ -37,7 +37,7 @@ async function safeFetch(raw, { maxBytes, timeoutMs = 8000 }) {
   throw new Error('too many redirects');
 }
 
-const sniff = (buf) => {
+export const sniff = (buf) => {
   const head = buf.subarray(0, 12);
   if (head[0] === 0x89 && head[1] === 0x50) return 'image/png';
   if (head[0] === 0xff && head[1] === 0xd8) return 'image/jpeg';
@@ -71,6 +71,8 @@ async function download(candidate, domain, i) {
   }
   const format = RASTER[type];
   if (!format || buf.length > MAX_RASTER || buf.length < 100) return null;
+  // A JPEG or GIF has no transparency, so it is a photo or banner that happens to sit near the logo, not the logo.
+  if (candidate.kind === 'logo' && (format === 'jpeg' || format === 'gif')) return null;
   return { type: candidate.kind, theme: 'dark', formats: [{ format, src: `data:${type};base64,${buf.toString('base64')}` }], uploaded: false, fileName: `${domain}-${candidate.kind}-${i + 1}.${format}` };
 }
 
@@ -145,4 +147,32 @@ export async function findViaHttp(domain) {
     for (const p of ['/apple-touch-icon.png', '/favicon.ico']) found.candidates.push({ kind: 'symbol', url: new URL(p, base).href });
   }
   return found;
+}
+
+// Many sites (Red Bull's, for one) refuse a plain server request for their own logo but serve it to a real browser page.
+// Asks the already-open page to fetch each logo file and swaps the address for the file itself. Failures are left as they
+// were, so the server's own download still gets a try.
+export async function fetchViaPage(page, candidates) {
+  for (const c of candidates) {
+    if (!c.url || c.url.startsWith('data:')) continue;
+    try {
+      const b64 = await page.evaluate(async (u) => {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        try {
+          const r = await fetch(u, { signal: ctl.signal, credentials: 'omit' });
+          if (!r.ok) return null;
+          const blob = await r.blob();
+          if (blob.size > 200 * 1024) return null;
+          return await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => res(null); fr.readAsDataURL(blob); });
+        } catch { return null; } finally { clearTimeout(timer); }
+      }, c.url);
+      if (!b64) continue;
+      const buf = Buffer.from(b64, 'base64');
+      const type = sniff(buf);
+      if (type) c.url = `data:${type};base64,${b64}`;
+    } catch {
+      /* keep the address; the server will try */
+    }
+  }
 }

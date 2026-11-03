@@ -97,7 +97,9 @@ function pickColors(brand, site, logoColors = []) {
   // The brand's own colours come first. A brand with a real brand/primary colour is never "monochrome";
   // otherwise the website decides whether the design is essentially black and white.
   const logoUse = (logoColors || []).filter((c) => realColor(c));
-  const monochrome = brandUse ? false : !brandUse && !accentUse && logoUse.length ? false : site ? stats.share < 0.08 : !(brandUse || accentUse);
+  // An official black or white (Simple Icons) means the brand really is monochrome: its logo can supply the accent, not the primary.
+  const officialNeutral = !brandUse && bfAll.some((c) => c.source === 'simpleicons');
+  const monochrome = brandUse ? false : officialNeutral ? true : !accentUse && logoUse.length ? false : site ? stats.share < 0.08 : !(brandUse || accentUse);
   const prov = {};
   const alternatives = { primary: [], accent: [] };
 
@@ -105,7 +107,7 @@ function pickColors(brand, site, logoColors = []) {
   if (monochrome) {
     primary = bfDark || '#111111';
     prov.primary = bfDark ? bfSource(bfDark) : 'default';
-    accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || null;
+    accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || harvestFromSite(site)[0]?.hex || null;
     prov.accent = accent ? (accentUse || brandUse ? bfSource(accent) : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {
     const measured = stats.ranked[0]?.hex;
@@ -120,7 +122,9 @@ function pickColors(brand, site, logoColors = []) {
       const [h, sat, l] = hexToHsl(c);
       return hueDistance(h, hexToHsl(primary)[0]) > 25 && sat > 0.3 && l > 0.22 && l < 0.85;
     };
-    accent = [...ordered.slice(1), ...stats.ranked.map((r) => r.hex)].find(usable) || null;
+    // The accent is a second colour the brand really uses: another logo colour, then the site's own colours (buttons, links,
+    // then every colour in its interface and icons). Only when none of those fits is one invented.
+    accent = [...ordered.slice(1), ...stats.ranked.map((r) => r.hex), ...harvestFromSite(site).map((h) => h.hex)].find(usable) || null;
     prov.accent = accent ? sourceOf(accent) : 'default';
   }
   if (!primary) {

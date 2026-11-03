@@ -120,9 +120,8 @@ export default function App() {
       };
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
-      // No official colour? Read the logo itself before falling back to the website. (An official black or white means the
-      // brand really is monochrome, so the logo isn't second-guessed.)
-      const logoColors = icon ? [] : await colorsFromLogos(collectLogos(brand));
+      // The website's own logo supplies the primary when there is no official colour, and the accent either way.
+      const logoColors = await colorsFromLogos(collectLogos({ logos: siteLogos }));
       const model = synthesize({ brand, reference, logoColors, ...siteData });
       model.fromWebsite = true;
       if (icon) model.notes.unshift(`The brand color is the official one from Simple Icons${icon.title !== brand.name ? ` (matched to "${icon.title}")` : ''}; the name and logo were read from the company's website. Check them carefully.`);

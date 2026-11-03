@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { assertPublicUrl } from './security.mjs';
+import { fetchViaPage } from './identity.mjs';
 
 const OUT_ROOT = fileURLToPath(new URL('../out/', import.meta.url));
 
@@ -125,6 +126,7 @@ export async function extractSite(input) {
     log(light ? 'measuring styles (no live screenshot in light mode)' : 'taking screenshot and measuring styles');
     if (!light) await page.screenshot({ path: `${dir}home.png` });
     const style = await page.evaluate(sampleStyles);
+    await fetchViaPage(page, style.identity?.candidates || []);
     log('done');
     const result = { url, domain, status, screenshot: light ? null : `/out/${domain}/home.png`, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
