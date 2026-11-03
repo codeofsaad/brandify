@@ -87,7 +87,7 @@ export default function App() {
     loadFont(m.typography.body.family);
   }, [m?.typography.heading.family, m?.typography.body.family]);
 
-  async function load(input) {
+  async function load(input, pickedName) {
     setLoading(true);
     setLoadingFor(input);
     setError('');
@@ -114,7 +114,7 @@ export default function App() {
       const mark = icon && { type: 'symbol', theme: 'dark', formats: [{ format: 'svg', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(icon.svg)}` }], uploaded: false, fileName: `${icon.slug}-mark.svg` };
       const brand = {
         ...data.brand,
-        name: cleanSiteName(found?.name) || data.brand.name,
+        name: cleanSiteName(found?.name) || pickedName || data.brand.name,
         description: found?.description || '',
         colors: icon ? [{ hex: icon.hex, type: 'brand', source: 'simpleicons' }] : [],
         logos: [...siteLogos.filter((l) => l.type === 'logo'), ...(mark ? [mark] : []), ...siteLogos.filter((l) => l.type !== 'logo')],

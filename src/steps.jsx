@@ -184,9 +184,9 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
   const canContinue = !loading && (hasCompany || (hasShots && customer.trim().length >= 2));
   const label = loading && !manual ? 'Analyzing…' : hasCompany && hasShots ? 'Pull branding + use screenshot' : hasCompany ? 'Pull branding' : hasShots ? 'Analyze screenshot' : 'Continue';
 
-  const submit = (v) => {
+  const submit = (v, name) => {
     const t = v.trim();
-    if (t) onLoad(t);
+    if (t) onLoad(t, name);
   };
   const choose = (r) => {
     setSelected(r);
@@ -195,7 +195,7 @@ export function CompanyStep({ onLoad, onManual, onShotsOnly, loading, error, sta
   };
   const go = () => {
     if (!canContinue) return;
-    if (hasCompany) submit(selected?.domain || results[0]?.domain || q);
+    if (hasCompany) submit(selected?.domain || results[0]?.domain || q, (selected || results[0])?.name);
     else onShotsOnly(customer.trim());
   };
 
