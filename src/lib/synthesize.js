@@ -76,7 +76,9 @@ export function brandfetchHasColor(brand) {
 
 function pickColors(brand, site, logoColors = []) {
   const bf = (type) => normalizeHex((brand.colors || []).find((c) => c.type === type)?.hex);
-  const bfAll = (brand.colors || []).map((c) => ({ hex: normalizeHex(c.hex), type: c.type })).filter((c) => c.hex);
+  const bfAll = (brand.colors || []).map((c) => ({ hex: normalizeHex(c.hex), type: c.type, source: c.source })).filter((c) => c.hex);
+  // Where a brand colour came from: Brandfetch, or another official source such as Simple Icons.
+  const bfSource = (hex) => bfAll.find((c) => c.hex === hex)?.source || 'brandfetch';
   const bfBrand = bf('brand') || bf('primary');
   const bfAccent = bf('accent');
   const bfDark = bf('dark');
@@ -104,13 +106,13 @@ function pickColors(brand, site, logoColors = []) {
     primary = bfDark || '#111111';
     prov.primary = bfDark ? 'brandfetch' : 'default';
     accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || null;
-    prov.accent = accent ? (accentUse || brandUse ? 'brandfetch' : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
+    prov.accent = accent ? (accentUse || brandUse ? bfSource(accent) : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {
     const measured = stats.ranked[0]?.hex;
     const bfOrder = [...new Set([brandUse, accentUse, ...bfAll.filter((c) => ['brand', 'primary'].includes(c.type) && realColor(c.hex)).map((c) => c.hex)].filter(Boolean))];
-    // Order of trust: Brandfetch, then the logo itself, then whatever the website happens to use.
+    // Order of trust: Brandfetch (or Simple Icons when Brandfetch is unavailable), then the logo itself, then whatever the website happens to use.
     const ordered = [...bfOrder, ...logoUse.filter((c) => !bfOrder.includes(c))];
-    const sourceOf = (c) => (bfOrder.includes(c) ? 'brandfetch' : logoUse.includes(c) ? 'logo' : 'measured');
+    const sourceOf = (c) => (bfOrder.includes(c) ? bfSource(c) : logoUse.includes(c) ? 'logo' : 'measured');
     primary = ordered[0] || measured;
     prov.primary = ordered[0] ? sourceOf(ordered[0]) : 'measured';
     if (ordered[0] && measured && deltaE(ordered[0], measured) > 0.06) alternatives.primary.push({ hex: measured, source: 'measured' });

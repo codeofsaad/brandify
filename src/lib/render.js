@@ -63,7 +63,7 @@ function intent(m) {
   return `${m.company.name} data apps should feel ${parts.join(', ')}. ${color}`;
 }
 
-const src = (m, k) => ({ brandfetch: 'Brandfetch', measured: 'measured on site', derived: 'derived', default: 'default', edited: 'edited by you' }[m.prov[k]] || '');
+const src = (m, k) => ({ brandfetch: 'Brandfetch', simpleicons: 'Simple Icons (official brand color)', measured: 'measured on site', derived: 'derived', default: 'default', edited: 'edited by you' }[m.prov[k]] || '');
 
 function logoSection(logo, asset) {
   if (!logo) return 'No logo selected.';

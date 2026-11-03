@@ -5,6 +5,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { extractSite } from './extract.mjs';
 import { requirePassword, rateLimit } from './security.mjs';
 import { harvestIdentity, findViaHttp } from './identity.mjs';
+import { iconFor } from './icons.mjs';
 
 // The Fir Node buildpack does not set NODE_ENV at runtime, so hosting is detected explicitly:
 // BRANDIFY_HOSTED=1 (set as a config var), NODE_ENV=production, or Heroku's DYNO variable.
@@ -167,6 +168,7 @@ app.post('/api/brand', async (req, res) => {
     res.json({
       brand: { name: label, domain, description: '', colors: [], fonts: [], logos: [] },
       demo: false,
+      icon: await iconFor(domain),
       fallback: { code: e.code || 'unavailable', message: e.message },
     });
   }
@@ -210,6 +212,7 @@ async function analyzeSite({ input, domain, screenshotUrl, wantIdentity = false 
       console.log(`[identity ${domain}] ${e.message}`);
     }
   }
+  const icon = wantIdentity ? await iconFor(domain, identity?.name) : null; // matched on the site's own name as well as the domain
   if (site) delete site.identity; // raw candidates (including SVG markup) are not needed by the browser
   // Nothing measured from a blocked or failed page is trustworthy; fall back to Brandfetch's screenshot.
   const live = site?.screenshot || null;
@@ -219,6 +222,7 @@ async function analyzeSite({ input, domain, screenshotUrl, wantIdentity = false 
     site,
     siteError,
     identity,
+    icon,
     screenshot: screenshot ? `${screenshot}?v=${Date.now()}` : null,
     screenshotSource: screenshot ? (live ? 'live' : 'brandfetch') : null,
   };

@@ -4,7 +4,7 @@ import { derivePalettes } from './lib/synthesize.js';
 import { selectedLogo } from './lib/render.js';
 import ReferenceDrop from './ReferenceDrop.jsx';
 
-const PROV_LABEL = { brandfetch: 'Brandfetch', measured: 'Measured on site', screenshot: 'Screenshot', logo: 'From logo', derived: 'Derived', default: 'Default', edited: 'Edited' };
+const PROV_LABEL = { brandfetch: 'Brandfetch', simpleicons: 'Simple Icons', measured: 'Measured on site', screenshot: 'Screenshot', logo: 'From logo', derived: 'Derived', default: 'Default', edited: 'Edited' };
 export const Badge = ({ kind }) => (kind ? <span className={`badge badge-${kind}`}>{PROV_LABEL[kind] || kind}</span> : null);
 
 function StepHead({ n, title, children, extra }) {
@@ -381,7 +381,7 @@ export function ColorsStep({ m, setColor, setPalette, regenPalettes, shots, onSe
               <i style={{ background: a.hex }} /> {a.hex}
             </button>
           ))}
-          <small>{m.prov.primary === 'logo' ? 'The color read from the logo is used by default.' : "Brandfetch's brand color is used by default."}</small>
+          <small>{m.prov.primary === 'logo' ? 'The color read from the logo is used by default.' : m.prov.primary === 'simpleicons' ? "The official brand color from Simple Icons is used by default." : "Brandfetch's brand color is used by default."}</small>
         </div>
       )}
 

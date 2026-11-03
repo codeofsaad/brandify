@@ -102,7 +102,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ----- badges ----- */
 .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: #4a4a4a; white-space: nowrap; }
-.badge-brandfetch { background: #e5f1fb; color: #0b5cab; }
+.badge-brandfetch, .badge-simpleicons { background: #e5f1fb; color: #0b5cab; }
 .badge-measured { background: #e3f3e8; color: #1d6b37; }
 .badge-derived, .badge-default { background: #eef0f3; color: #5c5c5c; }
 .badge-edited { background: #f0e7fb; color: var(--t-purple); }

@@ -111,10 +111,21 @@ export default function App() {
       }
       if (fallback) {
         const found = siteData.identity;
-        if (!found?.logos?.length && !siteData.site) {
+        if (!found?.logos?.length && !siteData.site && !(siteData.icon || data.icon)) {
           throw new Error(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} The company website could not be read either (${siteData.siteError || 'no response'}). Upload a logo or screenshot, or enter the details manually.`);
         }
-        data.brand = { ...data.brand, name: cleanSiteName(found?.name) || data.brand.name, description: found?.description || '', logos: found?.logos || [] };
+        // Simple Icons supplies the official brand colour and a clean mark; the website's own logos stay first.
+        const icon = siteData.icon || data.icon || null;
+        const siteLogos = found?.logos || [];
+        const mark = icon && { type: 'symbol', theme: 'dark', formats: [{ format: 'svg', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(icon.svg)}` }], uploaded: false, fileName: `${icon.slug}-mark.svg` };
+        data.icon = icon;
+        data.brand = {
+          ...data.brand,
+          name: cleanSiteName(found?.name) || data.brand.name,
+          description: found?.description || '',
+          colors: icon ? [{ hex: icon.hex, type: 'brand', source: 'simpleicons' }] : [],
+          logos: [...siteLogos.filter((l) => l.type === 'logo'), ...(mark ? [mark] : []), ...siteLogos.filter((l) => l.type !== 'logo')],
+        };
       }
       await ensureCatalog();
       const reference = shots.length ? { analysis: await analyzeShots(shots) } : null;
@@ -123,7 +134,8 @@ export default function App() {
       const model = synthesize({ brand: data.brand, demo: data.demo, reference, logoColors, ...siteData });
       if (fallback) {
         model.fromWebsite = true;
-        model.notes.unshift(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''} instead, so check them carefully.`);
+        const where = data.icon ? `The brand color is the official one from Simple Icons${data.icon.title !== data.brand.name ? ` (matched to "${data.icon.title}")` : ''}; the name and logo were read from the company's website` : `The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''}`;
+        model.notes.unshift(`${FALLBACK_WHY[fallback.code] || FALLBACK_WHY.unavailable} ${where}, so check them carefully.`);
       }
       setM(withDetected(model));
       setGeneratedMd(null);
