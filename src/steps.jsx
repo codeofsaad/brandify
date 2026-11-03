@@ -130,7 +130,7 @@ function LoadingCard({ status, progress, onSkip }) {
     return () => clearInterval(id);
   }, []);
   const siteSecs = progress?.phase === 'site' ? Math.floor((now - progress.startedAt) / 1000) : 0;
-  let line = 'Fetching brand data…';
+  let line = 'Looking up the company…';
   if (progress?.phase === 'site') {
     line =
       progress.status === 'queued' && progress.ahead > 0
@@ -143,7 +143,8 @@ function LoadingCard({ status, progress, onSkip }) {
       <div className="loading-body">
         <b>Studying {status}…</b>
         <p>{line}{progress?.phase === 'site' ? ` ${siteSecs}s` : ''}</p>
-        {progress?.phase === 'site' && siteSecs >= 60 && (
+        <p className="loading-note">This can take 1–2 minutes while we read their website, logo and colors. It isn&apos;t stuck.</p>
+        {progress?.phase === 'site' && siteSecs >= 120 && (
           <p className="slow-hint">
             This site is taking longer than usual.{' '}
             <button className="linkbtn" onClick={onSkip}>Cancel and enter the details manually</button>

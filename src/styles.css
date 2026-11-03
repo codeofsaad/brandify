@@ -357,6 +357,7 @@ h1, h2, h3, p { margin: 0; }
 .pal-cell .swatch { flex: none; height: 44px; width: 100%; }
 
 .loading-body { min-width: 0; }
+.loading-note { margin-top: 6px; font-size: 13px; color: var(--muted, #5c6b7a); }
 .slow-hint { margin-top: 10px; padding-top: 10px; border-top: 1px solid #c6e0f7; color: #5c3b00 !important; }
 .slow-hint .linkbtn { font-size: 13px; }
 

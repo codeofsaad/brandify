@@ -105,8 +105,11 @@ function pickColors(brand, site, logoColors = []) {
 
   let primary, accent;
   if (monochrome) {
-    primary = bfDark || '#111111';
-    prov.primary = bfDark ? bfSource(bfDark) : 'default';
+    // A black-and-white brand's primary is its official black (or the default near-black when none is known).
+    const official = officialNeutral ? bfAll.find((c) => c.source === 'simpleicons')?.hex : null;
+    const officialNeutralHex = official && hexToHsl(official)[2] < 0.5 ? official : null; // a white logo colour can't be a primary
+    primary = bfDark || officialNeutralHex || '#111111';
+    prov.primary = bfDark || officialNeutralHex ? bfSource(bfDark || officialNeutralHex) : 'default';
     accent = accentUse || brandUse || logoUse[0] || stats.ranked[0]?.hex || harvestFromSite(site)[0]?.hex || null;
     prov.accent = accent ? (accentUse || brandUse ? bfSource(accent) : accent === logoUse[0] ? 'logo' : 'measured') : 'default';
   } else {

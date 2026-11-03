@@ -45,6 +45,7 @@ async function launchBrowser(log = () => {}) {
 // screenshot (the preview then has no "Their website" tab). Computed styles do not need those resources.
 // In light mode the page still loads its images, so a screenshot can be taken from the same visit (fonts, video and
 // websockets stay blocked). BRANDIFY_SCREENSHOT=0 turns that off if it proves too slow or heavy for a small dyno.
+const IMAGE_WINDOW_MS = 10000;
 const wantsShot = () => process.env.BRANDIFY_SCREENSHOT !== '0';
 const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
 
@@ -57,6 +58,7 @@ export async function extractSite(input) {
   const url = siteUrl(input);
   const log = makeLog(new URL(url).hostname);
   const light = isLight();
+  const t0 = Date.now();
   log(`start (${light ? 'light' : 'full'} mode)`);
   await assertPublicUrl(url); // refuse localhost / private network targets
   log('url allowed');
@@ -80,7 +82,9 @@ export async function extractSite(input) {
     // Every request the page makes (including redirects and subresources) must target a public host.
     await ctx.route('**/*', async (route) => {
       try {
-        if (light && ['media', 'font', 'websocket', 'eventsource', ...(wantsShot() ? [] : ['image'])].includes(route.request().resourceType())) return route.abort();
+        if (light && ['media', 'font', 'websocket', 'eventsource'].includes(route.request().resourceType())) return route.abort();
+        // Images only matter for the screenshot, so heavy pages get a short window and then stop loading them.
+        if (light && route.request().resourceType() === 'image' && (!wantsShot() || Date.now() - t0 > IMAGE_WINDOW_MS)) return route.abort();
         const u = new URL(route.request().url());
         if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return route.continue();
         await assertPublicUrl(u.href);
@@ -131,18 +135,20 @@ export async function extractSite(input) {
     if (!light) {
       await page.screenshot({ path: `${dir}home.png` });
       screenshot = `/out/${domain}/home.png`;
-    } else if (wantsShot()) {
-      // A compressed picture of the top of the page; if it can't be taken quickly the pull carries on without one.
+    }
+    const style = await page.evaluate(sampleStyles);
+    await fetchViaPage(page, style.identity?.candidates || []);
+    // Light mode takes its picture last, after everything else is safely measured, and gives up quickly: a slow page must
+    // cost at most the screenshot, never the analysis.
+    if (light && wantsShot() && Date.now() - t0 < 40000) {
       try {
-        await page.screenshot({ path: `${dir}home.jpg`, type: 'jpeg', quality: 60, animations: 'disabled', timeout: 8000 });
+        await page.screenshot({ path: `${dir}home.jpg`, type: 'jpeg', quality: 60, animations: 'disabled', timeout: 6000 });
         screenshot = `/out/${domain}/home.jpg`;
         log('screenshot taken');
       } catch (e) {
         log(`screenshot skipped: ${e.message.split('\n')[0]}`);
       }
     }
-    const style = await page.evaluate(sampleStyles);
-    await fetchViaPage(page, style.identity?.candidates || []);
     log('done');
     const result = { url, domain, status, screenshot, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
