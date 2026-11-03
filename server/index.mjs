@@ -68,6 +68,35 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// Last-resort logo for a site that blocks automated browsers: the small icon Brandfetch's free search already shows in the
+// suggestion list. Only Brandfetch's image host is contacted, and the file is embedded so nothing is hotlinked later.
+const searchIconCache = new Map(); // domain -> { logo } | null
+async function searchIconFor(domain) {
+  if (!CLIENT_ID) return null;
+  if (searchIconCache.has(domain)) return searchIconCache.get(domain);
+  let out = null;
+  try {
+    const label = domain.split('.')[0];
+    const r = await fetch(`https://api.brandfetch.io/v2/search/${encodeURIComponent(label)}?c=${CLIENT_ID}`, { signal: AbortSignal.timeout(5000) });
+    const hit = r.ok ? (await r.json()).find((b) => String(b.domain).toLowerCase() === domain && b.icon) : null;
+    const u = hit && new URL(hit.icon);
+    if (u && u.protocol === 'https:' && u.hostname === 'cdn.brandfetch.io') {
+      const img = await fetch(u.href, { redirect: 'error', signal: AbortSignal.timeout(5000) });
+      const type = (img.headers.get('content-type') || '').split(';')[0];
+      const format = { 'image/webp': 'webp', 'image/png': 'png', 'image/svg+xml': 'svg' }[type];
+      const buf = Buffer.from(await img.arrayBuffer());
+      if (img.ok && format && buf.length > 100 && buf.length <= 200 * 1024) {
+        out = { type: 'symbol', theme: 'dark', formats: [{ format, src: `data:${type};base64,${buf.toString('base64')}` }], uploaded: false, fileName: `${domain}-search-icon.${format}` };
+      }
+    }
+  } catch {
+    out = null;
+  }
+  if (searchIconCache.size > 300) searchIconCache.clear();
+  searchIconCache.set(domain, out);
+  return out;
+}
+
 // A company starts as just a name and domain; the name, description and logos come from its website (the analysis job
 // below) and the official brand colour from Simple Icons. This returns at once because Heroku's router drops any request
 // that takes longer than 30 seconds, so the slow website analysis runs as a background job.
@@ -78,6 +107,7 @@ app.post('/api/brand', async (req, res) => {
   res.json({
     brand: { name: label, domain, description: '', colors: [], fonts: [], logos: [] },
     icon: await iconFor(domain),
+    searchIcon: await searchIconFor(domain),
   });
 });
 
@@ -97,6 +127,8 @@ async function analyzeSite({ input, domain }) {
   if (Number(process.env.BRANDIFY_TEST_DELAY_MS) > 0) await new Promise((r) => setTimeout(r, Number(process.env.BRANDIFY_TEST_DELAY_MS))); // testing only
   let site = null;
   let siteError = null;
+  // Testing only: behave as if the site blocked us completely (no page, no plain-HTTP icons).
+  if (process.env.BRANDIFY_TEST_BLOCKED === '1') return { site: null, siteError: 'The site returned HTTP 403 to an automated browser.', identity: null, icon: await iconFor(domain), screenshot: null, screenshotSource: null };
   try {
     const r = await withTimeout(extractSite(input), JOB_TIMEOUT_MS, 'The website took too long to analyze');
     if (r.blocked) siteError = r.reason;

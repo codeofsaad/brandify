@@ -106,10 +106,11 @@ export default function App() {
       // The website supplies the name, description and logos; Simple Icons the official brand colour and a clean mark.
       const found = siteData.identity;
       const icon = siteData.icon || data.icon || null;
-      if (!found?.logos?.length && !siteData.site && !icon) {
-        throw new Error(`${ctrl.signal.aborted ? 'Cancelled.' : `The company website could not be read (${siteData.siteError || 'no response'}).`} Upload a logo or screenshot, or enter the details manually.`);
-      }
-      const siteLogos = found?.logos || [];
+      // Cancelling stops here and offers manual entry. A site that merely can't be read does not: the backups below fill in
+      // what they can and the rest stays at clearly labelled defaults.
+      if (ctrl.signal.aborted) throw new Error('Cancelled. Upload a logo or screenshot, or enter the details manually.');
+      const siteLogos = found?.logos?.length ? found.logos : data.searchIcon ? [data.searchIcon] : []; // the search icon is only a last resort
+      const usedSearchIcon = !found?.logos?.length && Boolean(data.searchIcon);
       const mark = icon && { type: 'symbol', theme: 'dark', formats: [{ format: 'svg', src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(icon.svg)}` }], uploaded: false, fileName: `${icon.slug}-mark.svg` };
       const brand = {
         ...data.brand,
@@ -124,7 +125,9 @@ export default function App() {
       const logoColors = await colorsFromLogos(collectLogos({ logos: siteLogos }));
       const model = synthesize({ brand, reference, logoColors, ...siteData });
       model.fromWebsite = true;
-      if (icon) model.notes.unshift(`The brand color is the official one from Simple Icons${icon.title !== brand.name ? ` (matched to "${icon.title}")` : ''}; the name and logo were read from the company's website. Check them carefully.`);
+      if (!siteData.site && !siteLogos.length && !icon) model.notes.unshift("Neither the website nor Simple Icons had anything for this company, so the colors, logo and fonts are defaults. Upload a logo or a screenshot of their app on the Colors and Logo steps, or edit the values by hand.");
+      else if (usedSearchIcon && !icon) model.notes.unshift("The website blocked automatic reading, so the logo is the small icon from the company search and the colors are read from it. Check them carefully.");
+      else if (icon) model.notes.unshift(`The brand color is the official one from Simple Icons${icon.title !== brand.name ? ` (matched to "${icon.title}")` : ''}; the name and logo were read from the company's website. Check them carefully.`);
       else model.notes.unshift(`The name, logo and colors were read from the company's website${logoColors.length ? ' and its logo' : ''}, so check them carefully.`);
       setM(withDetected(model));
       setGeneratedMd(null);
