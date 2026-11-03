@@ -43,6 +43,9 @@ async function launchBrowser(log = () => {}) {
 
 // Light mode (default on hosted small dynos): skip images/video/fonts and slow page-interaction steps, and skip the live
 // screenshot (the preview then has no "Their website" tab). Computed styles do not need those resources.
+// In light mode the page still loads its images, so a screenshot can be taken from the same visit (fonts, video and
+// websockets stay blocked). BRANDIFY_SCREENSHOT=0 turns that off if it proves too slow or heavy for a small dyno.
+const wantsShot = () => process.env.BRANDIFY_SCREENSHOT !== '0';
 const isLight = () => process.env.BRANDIFY_LIGHT === '1' || (process.env.BRANDIFY_LIGHT !== '0' && (process.env.NODE_ENV === 'production' || process.env.BRANDIFY_HOSTED === '1' || Boolean(process.env.DYNO)));
 
 export function siteUrl(input) {
@@ -77,7 +80,7 @@ export async function extractSite(input) {
     // Every request the page makes (including redirects and subresources) must target a public host.
     await ctx.route('**/*', async (route) => {
       try {
-        if (light && ['image', 'media', 'font', 'websocket', 'eventsource'].includes(route.request().resourceType())) return route.abort();
+        if (light && ['media', 'font', 'websocket', 'eventsource', ...(wantsShot() ? [] : ['image'])].includes(route.request().resourceType())) return route.abort();
         const u = new URL(route.request().url());
         if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return route.continue();
         await assertPublicUrl(u.href);
@@ -123,12 +126,25 @@ export async function extractSite(input) {
       return result;
     }
 
-    log(light ? 'measuring styles (no live screenshot in light mode)' : 'taking screenshot and measuring styles');
-    if (!light) await page.screenshot({ path: `${dir}home.png` });
+    log(light ? 'measuring styles (light mode)' : 'taking screenshot and measuring styles');
+    let screenshot = null;
+    if (!light) {
+      await page.screenshot({ path: `${dir}home.png` });
+      screenshot = `/out/${domain}/home.png`;
+    } else if (wantsShot()) {
+      // A compressed picture of the top of the page; if it can't be taken quickly the pull carries on without one.
+      try {
+        await page.screenshot({ path: `${dir}home.jpg`, type: 'jpeg', quality: 60, animations: 'disabled', timeout: 8000 });
+        screenshot = `/out/${domain}/home.jpg`;
+        log('screenshot taken');
+      } catch (e) {
+        log(`screenshot skipped: ${e.message.split('\n')[0]}`);
+      }
+    }
     const style = await page.evaluate(sampleStyles);
     await fetchViaPage(page, style.identity?.candidates || []);
     log('done');
-    const result = { url, domain, status, screenshot: light ? null : `/out/${domain}/home.png`, ...style };
+    const result = { url, domain, status, screenshot, ...style };
     writeFileSync(`${dir}style.json`, JSON.stringify(result, null, 2));
     return result;
   } finally {
